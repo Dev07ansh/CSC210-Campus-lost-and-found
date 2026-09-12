@@ -1,0 +1,9 @@
+backend/target/
+backend/.m2/
+backend/data/*.db
+backend/data/*.sqlite
+backend/data/*.sqlite3
+.DS_Store
+.vscode/
+.idea/
+*.log
