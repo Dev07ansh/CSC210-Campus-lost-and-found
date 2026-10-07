@@ -1,0 +1,32 @@
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="brand-mark">LF</div>
+      <div>Lost &amp; Found<span>Campus platform</span></div>
+    </div>
+    <nav id="sidebar-nav">
+      <button data-page="dashboard" onclick="navigate('dashboard')">⌂ Dashboard</button>
+      <button data-page="browse" onclick="navigate('browse')">⌕ Browse &amp; Search</button>
+      <button data-page="report-lost" onclick="navigate('report-lost')">＋ Report Lost</button>
+      <button data-page="report-found" onclick="navigate('report-found')">＋ Report Found</button>
+      <button data-page="reports" onclick="navigate('reports')">▣ My Reports</button>
+      <button data-page="settings" onclick="navigate('settings')">⚙ Settings</button>
+    </nav>
+    <div class="sidebar-bottom">
+      <button onclick="logout()">↪ Log out</button>
+    </div>
+  </aside>
+  <main class="main">
+    <header class="topbar">
+      <button class="mobile-menu" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
+      <div>
+        <div class="eyebrow">Campus Lost &amp; Found</div>
+        <h1 id="page-title"></h1>
+      </div>
+      <div>
+        <button class="avatar" id="avatar-btn" onclick="navigate('settings')"></button>
+      </div>
+    </header>
+    <section class="content" id="page-content"></section>
+  </main>
+</div>

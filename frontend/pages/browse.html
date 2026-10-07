@@ -1,0 +1,26 @@
+<div class="page-intro">
+  <span class="eyebrow">Search &amp; retrieval</span>
+  <h2>Browse reports</h2>
+  <p>Keyword, category, color, location, and date filters. <span id="browse-status"></span></p>
+</div>
+<div class="filter-bar">
+  <input id="query" placeholder="Search item, category, or location" oninput="queueFilter()">
+  <select id="type" onchange="filterItems()">
+    <option value="">All types</option>
+    <option>LOST</option>
+    <option>FOUND</option>
+  </select>
+  <select id="category" onchange="filterItems()">
+    <option value="">All categories</option>
+  </select>
+  <select id="color" onchange="filterItems()">
+    <option value="">All colors</option>
+  </select>
+  <select id="location" onchange="filterItems()">
+    <option value="">All locations</option>
+  </select>
+  <input id="start" type="date" onchange="filterItems()">
+  <input id="end" type="date" onchange="filterItems()">
+</div>
+<p id="algorithm" class="dsa-note"></p>
+<div id="results" class="item-grid"></div>
