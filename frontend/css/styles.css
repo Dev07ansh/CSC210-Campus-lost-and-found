@@ -411,6 +411,22 @@ textarea {
   max-height: 240px;
   object-fit: cover;
 }
+.verification-details {
+  background: #f8fafc;
+  border: 1px solid #d7e0ec;
+  border-radius: 14px;
+  padding: 20px;
+}
+.verification-details h3,
+.claim-section h3 {
+  margin: 0 0 6px;
+}
+.verification-info {
+  margin: 16px 0 0;
+  color: var(--success);
+  font-size: 12px;
+  line-height: 1.9;
+}
 /* ============================================================
    Notifications & settings
    ============================================================ */
@@ -508,6 +524,44 @@ dd {
   color: var(--success);
   white-space: nowrap;
 }
+.claim-section {
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.verification-threshold {
+  display: inline-block;
+  margin: 3px 0 14px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #f2ebff;
+  color: #6d28d9;
+  font-size: 11px;
+  font-weight: 800;
+}
+.claim-form {
+  display: grid;
+  gap: 12px;
+}
+.claim-form label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+.claim-form input {
+  margin-top: 7px;
+}
+.claim-form .btn {
+  justify-self: start;
+}
+.claim-result {
+  min-height: 20px;
+  margin: 14px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+.claim-result.success { color: var(--success); }
+.claim-result.error { color: var(--danger); }
 /* ============================================================
    Status & empty states
    ============================================================ */

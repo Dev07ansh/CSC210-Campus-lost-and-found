@@ -27,6 +27,20 @@
       </label>
       <div id="image-preview" class="image-preview">No image selected</div>
     </div>
+    <section class="form-section verification-details" id="verification-details" hidden>
+      <h3>🔒 Verification Details</h3>
+      <p class="dsa-note">PRIVATE — Only you can see these. Used to verify genuine ownership during a claim.</p>
+      <label>Interior color or lining *
+        <input name="interiorColorOrLining" placeholder="e.g. Red lining, beige inside">
+      </label>
+      <label>Unique marks, scratches, stickers, or engravings *
+        <input name="uniqueMarks" placeholder="e.g. Scratch on bottom left corner, initials written in blue">
+      </label>
+      <label>What does it contain? *
+        <input name="contents" placeholder="e.g. 3 debit cards, college ID, some cash">
+      </label>
+      <p class="verification-info">✓ Questions drawn from your private report<br>✓ Partial matches allowed — exact wording not required<br>✓ 3 wrong attempts = account suspended</p>
+    </section>
     <div class="form-actions">
       <button type="button" class="btn secondary" onclick="navigate('dashboard')">Cancel</button>
       <button class="btn primary">Submit report</button>

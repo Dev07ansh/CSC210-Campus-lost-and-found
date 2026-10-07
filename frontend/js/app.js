@@ -178,6 +178,7 @@ function displayItem(item, type) {
     status: item.status || 'Active',
     description: item.description || 'No description provided.',
     imageUrl: item.imageUrl || '',
+    verificationAvailable: Boolean(item.verificationAvailable),
   };
 }
 
@@ -367,6 +368,9 @@ async function renderReportForm(container, type) {
   populateSelect('location', LOCATIONS);
   document.querySelector('#report-form [name="image"]').required = !lost;
   document.getElementById('photo-flag').textContent = lost ? '(optional)' : '*';
+  const verification = document.getElementById('verification-details');
+  verification.hidden = !lost;
+  verification.querySelectorAll('input').forEach((input) => { input.required = lost; });
   document.getElementById('report-form').addEventListener('submit', (event) => submitReport(event, type));
 }
 function previewImage(input) {
@@ -391,6 +395,11 @@ async function submitReport(event, type) {
       dateTime: `${data.get('date')}T${data.get('time') || '12:00'}:00`,
       status: 'Active',
     };
+  if (type === 'LOST') {
+    item.interiorColorOrLining = data.get('interiorColorOrLining');
+    item.uniqueMarks = data.get('uniqueMarks');
+    item.contents = data.get('contents');
+  }
   const payload = new FormData();
   payload.append('item', new Blob([JSON.stringify(item)], { type: 'application/json' }));
   const image = data.get('image');
@@ -446,6 +455,41 @@ async function renderDetail(container, key) {
   if (item.type === 'LOST' && item.serverId) {
     matchSection.hidden = false;
     loadMatches(item.serverId);
+    const claimSection = document.getElementById('claim-section');
+    if (item.verificationAvailable) {
+      claimSection.hidden = false;
+      document.getElementById('claim-form').addEventListener('submit', (event) => verifyOwnership(event, item.serverId));
+    }
+  }
+}
+async function verifyOwnership(event, lostItemId) {
+  event.preventDefault();
+  const form = new FormData(event.target);
+  const result = document.getElementById('claim-result');
+  try {
+    const verification = await api(`/lost-items/${lostItemId}/verify-ownership`, {
+      method: 'POST',
+      body: JSON.stringify({
+        claimerEmail: currentUser?.email || '',
+        interiorColorOrLining: form.get('interiorColorOrLining'),
+        uniqueMarks: form.get('uniqueMarks'),
+        contents: form.get('contents'),
+      }),
+    });
+    if (verification.suspended) {
+      result.textContent = 'Your account is suspended after three incorrect attempts.';
+      result.className = 'claim-result error';
+    } else if (verification.passed) {
+      result.textContent = 'Ownership verified successfully.';
+      result.className = 'claim-result success';
+    } else {
+      const remaining = Math.max(0, 3 - verification.failedAttempts);
+      result.textContent = `Answers did not meet the 60% threshold. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.`;
+      result.className = 'claim-result error';
+    }
+  } catch (error) {
+    result.textContent = error.message || 'Verification could not be completed.';
+    result.className = 'claim-result error';
   }
 }
 async function buildMatchRow(m) {

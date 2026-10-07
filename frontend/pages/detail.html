@@ -16,5 +16,17 @@
       <p id="match-note" class="dsa-note">Loading heap-ranked candidates…</p>
       <div id="matches" class="match-list"></div>
     </section>
+    <section class="claim-section" id="claim-section" hidden>
+      <h3>4. The claimer verifies ownership</h3>
+      <p class="dsa-note">The claimer must answer 3 private questions about the item before any contact information is shared. Answers are scored using Jaccard word similarity — 60% or above passes. 3 wrong attempts = account suspended.</p>
+      <span class="verification-threshold">Verification threshold: 60%</span>
+      <form id="claim-form" class="claim-form">
+        <label>What is the interior color or lining?<input required name="interiorColorOrLining"></label>
+        <label>What unique marks does it have?<input required name="uniqueMarks"></label>
+        <label>What does it contain?<input required name="contents"></label>
+        <button class="btn primary">Verify ownership</button>
+      </form>
+      <p class="claim-result" id="claim-result" aria-live="polite"></p>
+    </section>
   </div>
 </div>
