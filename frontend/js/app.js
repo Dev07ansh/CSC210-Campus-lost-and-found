@@ -96,6 +96,18 @@ let apiItems = [],
   googleReady = false,
   debounce;
 
+// Claim feedback and the one-time handover code deliberately live only in
+// memory. They are never written to localStorage or included in a URL.
+const claimMessages = new Map();
+const handoverCodes = new Map();
+const CLAIM_STATUS_LABELS = {
+  PENDING_VERIFICATION: 'Awaiting verification',
+  VERIFIED: 'Verified — arrange handover',
+  RESOLVED: 'Resolved',
+  REJECTED: 'Rejected',
+  CANCELLED: 'Cancelled',
+};
+
 // ============================================================
 // HTML partial & component loading
 //
@@ -187,9 +199,13 @@ function displayItem(item, type) {
 // ============================================================
 async function api(path, config = {}) {
   const headers = config.body instanceof FormData ? {} : { 'Content-Type': 'application/json' };
+  // Temporary local-demo identity bridge. The server applies ownership rules for
+  // this identity, but an email header is not real authentication; replace it
+  // with a server-authenticated session/JWT before deployment.
+  const identity = currentUser?.email ? { 'X-User-Email': currentUser.email } : {};
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...config,
-    headers: { ...headers, ...(config.headers || {}) },
+    headers: { ...headers, ...identity, ...(config.headers || {}) },
   });
   if (!response.ok) {
     let message = `API error ${response.status}`;
@@ -217,6 +233,25 @@ function status() {
   return backendAvailable
     ? '<span class="api-status online">● Live API</span>'
     : '<span class="api-status demo">● Demo data</span>';
+}
+function claimStatusLabel(value) {
+  return CLAIM_STATUS_LABELS[String(value || '').toUpperCase()] || 'Claim update unavailable';
+}
+function claimStatusClass(value) {
+  return String(value || 'unknown').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+}
+function claimItemName(item) {
+  return item?.itemName || item?.title || 'Item unavailable';
+}
+function claimDateTime(value) {
+  if (!value) return 'Not available';
+  const date = new Date(value);
+  return Number.isNaN(date.valueOf())
+    ? value
+    : date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+}
+function rememberClaimMessage(id, type, text) {
+  claimMessages.set(String(id), { type, text });
 }
 
 // ============================================================
@@ -421,6 +456,43 @@ async function renderReports(container) {
   grid.innerHTML = all.length ? '' : empty('No reports yet', 'Create a report to add it here.');
   if (all.length) grid.replaceChildren(...(await Promise.all(all.map(buildCard))));
 }
+async function buildClaimCard(claim) {
+  const template = await loadTemplate('components/claim-card.html');
+  const node = template.content.cloneNode(true);
+  const statusNode = node.querySelector('.claim-card-status');
+  statusNode.textContent = claimStatusLabel(claim.status);
+  statusNode.classList.add(claimStatusClass(claim.status));
+  node.querySelector('.claim-card-lost').textContent = claimItemName(claim.lostItem);
+  node.querySelector('.claim-card-found').textContent = claimItemName(claim.foundItem);
+  node.querySelector('.claim-card-role').textContent =
+    String(claim.role || '').toUpperCase() === 'FINDER' ? 'You reported the found item' : 'You reported the lost item';
+  node.querySelector('.claim-card-created').textContent = `Created ${claimDateTime(claim.createdAt)}`;
+  const score = Number(claim.matchScore);
+  node.querySelector('.claim-card-score').textContent = Number.isFinite(score)
+    ? `Similarity context: ${Math.round(score * 100)}%`
+    : 'Similarity suggestion only';
+  node.querySelector('.claim-card-view').addEventListener('click', () => navigate(`claim-${claim.id}`));
+  return node;
+}
+async function renderClaims(container) {
+  container.innerHTML = await loadPartial('pages/claims.html');
+  const target = document.getElementById('claims-list');
+  if (!backendAvailable) {
+    target.innerHTML = empty('Claims need the live API', 'Start the backend to create, verify, or resolve a claim.');
+    return;
+  }
+  try {
+    const claims = await api('/claims/me');
+    document.getElementById('claims-status').outerHTML = status();
+    if (!claims.length) {
+      target.innerHTML = empty('No claims yet', 'Choose a suggested found-item match from one of your lost reports.');
+      return;
+    }
+    target.replaceChildren(...(await Promise.all(claims.map(buildClaimCard))));
+  } catch (error) {
+    target.innerHTML = empty('Claims unavailable', error.message || 'The live API could not load your claims.');
+  }
+}
 async function renderSettings(container) {
   container.innerHTML = await loadPartial('pages/settings.html');
   document.getElementById('settings-name').value = currentUser?.name || 'Student';
@@ -454,61 +526,80 @@ async function renderDetail(container, key) {
   const matchSection = document.getElementById('match-section');
   if (item.type === 'LOST' && item.serverId) {
     matchSection.hidden = false;
-    loadMatches(item.serverId);
-    const claimSection = document.getElementById('claim-section');
-    if (item.verificationAvailable) {
-      claimSection.hidden = false;
-      document.getElementById('claim-form').addEventListener('submit', (event) => verifyOwnership(event, item.serverId));
-    }
+    loadMatches(item.serverId, item.verificationAvailable);
   }
 }
-async function verifyOwnership(event, lostItemId) {
-  event.preventDefault();
-  const form = new FormData(event.target);
-  const result = document.getElementById('claim-result');
+function setMatchClaimFeedback(type, text) {
+  const result = document.getElementById('match-claim-result');
+  if (!result) return;
+  result.textContent = text;
+  result.className = `claim-result ${type}`;
+}
+async function createClaim(lostItemId, foundItemId, button) {
+  if (!backendAvailable) {
+    setMatchClaimFeedback('error', 'Claims require the live API.');
+    return;
+  }
+  button.disabled = true;
+  const originalLabel = button.textContent;
+  button.textContent = 'Creating claim…';
   try {
-    const verification = await api(`/lost-items/${lostItemId}/verify-ownership`, {
+    // The backend validates report ownership, item state, duplicates, and the
+    // candidate pairing. The browser only selects a suggested candidate.
+    const claim = await api('/claims', {
       method: 'POST',
-      body: JSON.stringify({
-        claimerEmail: currentUser?.email || '',
-        interiorColorOrLining: form.get('interiorColorOrLining'),
-        uniqueMarks: form.get('uniqueMarks'),
-        contents: form.get('contents'),
-      }),
+      body: JSON.stringify({ lostItemId, foundItemId }),
     });
-    if (verification.suspended) {
-      result.textContent = 'Your account is suspended after three incorrect attempts.';
-      result.className = 'claim-result error';
-    } else if (verification.passed) {
-      result.textContent = 'Ownership verified successfully.';
-      result.className = 'claim-result success';
-    } else {
-      const remaining = Math.max(0, 3 - verification.failedAttempts);
-      result.textContent = `Answers did not meet the 60% threshold. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.`;
-      result.className = 'claim-result error';
-    }
+    navigate(`claim-${claim.id}`);
   } catch (error) {
-    result.textContent = error.message || 'Verification could not be completed.';
-    result.className = 'claim-result error';
+    button.disabled = false;
+    button.textContent = originalLabel;
+    setMatchClaimFeedback('error', error.message || 'The claim could not be created.');
   }
 }
-async function buildMatchRow(m) {
+async function buildMatchRow(m, lostItemId, verificationAvailable) {
   const template = await loadTemplate('components/match-row.html');
   const node = template.content.cloneNode(true);
-  node.querySelector('.match-title').textContent = m.item.itemName;
-  node.querySelector('.match-meta').textContent = `${m.item.category} · ${m.item.location}`;
-  node.querySelector('.match-score').textContent = `${Math.round(m.score * 100)}% match`;
+  const candidate = m.item || m.foundItem || {};
+  node.querySelector('.match-title').textContent = claimItemName(candidate);
+  node.querySelector('.match-meta').textContent = `${candidate.category || 'Other'} · ${candidate.location || 'Location unavailable'}`;
+  const score = Number(m.score);
+  node.querySelector('.match-score').textContent = Number.isFinite(score)
+    ? `Similarity score: ${Math.round(score * 100)}%`
+    : 'Similarity suggestion';
+  const claimButton = node.querySelector('.match-claim');
+  const foundItemId = candidate.id ?? m.foundItemId;
+  if (!backendAvailable || !currentUser?.email || foundItemId == null) {
+    claimButton.disabled = true;
+    claimButton.textContent = backendAvailable ? 'Sign in to claim' : 'Live API required';
+  } else if (!verificationAvailable) {
+    // The server enforces this too. This client-side explanation avoids offering
+    // an unusable claim for a legacy report that has no complete secret record.
+    claimButton.disabled = true;
+    claimButton.textContent = 'Private details required';
+    claimButton.title = 'This lost report needs all three private verification details before it can be claimed.';
+  } else if (m.canCreateClaim === false) {
+    // This flag is calculated by the server. Keep the control visible so an
+    // ineligible viewer understands why there is no action to take.
+    claimButton.disabled = true;
+    claimButton.textContent = 'Not eligible to claim';
+    claimButton.title =
+      'Only the owner of an active lost report can claim a found item, and a finder cannot claim their own report.';
+  } else {
+    claimButton.addEventListener('click', () => createClaim(lostItemId, foundItemId, claimButton));
+  }
   return node;
 }
-async function loadMatches(id) {
+async function loadMatches(id, verificationAvailable = true) {
   const target = document.getElementById('matches');
   if (!target) return;
   try {
     const matches = (await api(`/lost-items/${id}/matches?limit=5`)).filter((m) => m.score > 0);
-    document.getElementById('match-note').textContent =
-      'Scores use the supplied color, location, keyword scorer and MaxHeap ranking.';
+    document.getElementById('match-note').textContent = verificationAvailable
+      ? 'Similarity ranks color, location, and keywords. It is a suggestion, not proof of ownership.'
+      : 'This older lost report has no complete private verification details, so it cannot be claimed. Similarity is still only a suggestion.';
     if (matches.length) {
-      target.replaceChildren(...(await Promise.all(matches.map(buildMatchRow))));
+      target.replaceChildren(...(await Promise.all(matches.map((match) => buildMatchRow(match, id, verificationAvailable)))));
     } else {
       target.textContent = 'No meaningful candidates yet.';
     }
@@ -516,6 +607,193 @@ async function loadMatches(id) {
     document.getElementById('match-note').textContent =
       'Could not retrieve matches from the backend.';
   }
+}
+function renderClaimFeedback(id) {
+  const feedback = claimMessages.get(String(id));
+  const node = document.getElementById('claim-feedback');
+  if (!node || !feedback) return;
+  node.textContent = feedback.text;
+  node.className = `claim-result ${feedback.type}`;
+}
+async function copyHandoverCode(id) {
+  const code = handoverCodes.get(String(id));
+  if (!code) return;
+  try {
+    await navigator.clipboard.writeText(code);
+    rememberClaimMessage(id, 'success', 'One-time handover code copied. Share it only in person.');
+  } catch (_) {
+    rememberClaimMessage(id, 'error', 'Copy is unavailable. Select the one-time code and copy it manually.');
+  }
+  renderClaimFeedback(id);
+}
+async function verifyClaim(event, claimId) {
+  event.preventDefault();
+  const form = new FormData(event.target);
+  const submit = event.target.querySelector('button[type="submit"]');
+  if (submit) submit.disabled = true;
+  try {
+    const verification = await api(`/claims/${claimId}/verify`, {
+      method: 'POST',
+      body: JSON.stringify({
+        interiorColorOrLining: form.get('interiorColorOrLining'),
+        uniqueMarks: form.get('uniqueMarks'),
+        contents: form.get('contents'),
+      }),
+    });
+    if (verification.handoverCode) handoverCodes.set(String(claimId), verification.handoverCode);
+    if (verification.passed) {
+      rememberClaimMessage(
+        claimId,
+        'success',
+        'Ownership verified. Arrange a handover; the finder must confirm the one-time code.',
+      );
+    } else if (verification.rejected) {
+      rememberClaimMessage(claimId, 'error', 'Verification failed and this claim was rejected.');
+    } else {
+      const remaining = verification.attemptsRemaining ?? verification.claim?.verificationAttemptsRemaining;
+      rememberClaimMessage(
+        claimId,
+        'error',
+        Number.isFinite(Number(remaining))
+          ? `Verification did not pass. ${remaining} attempt${Number(remaining) === 1 ? '' : 's'} remaining.`
+          : 'Verification did not pass. Please try again.',
+      );
+    }
+    await render();
+  } catch (error) {
+    rememberClaimMessage(claimId, 'error', error.message || 'Verification could not be completed.');
+    if (submit) submit.disabled = false;
+    renderClaimFeedback(claimId);
+  }
+}
+async function resolveClaim(event, claimId) {
+  event.preventDefault();
+  const form = new FormData(event.target);
+  const submit = event.target.querySelector('button[type="submit"]');
+  if (submit) submit.disabled = true;
+  try {
+    await api(`/claims/${claimId}/resolve`, {
+      method: 'POST',
+      body: JSON.stringify({ handoverCode: form.get('handoverCode') }),
+    });
+    handoverCodes.delete(String(claimId));
+    rememberClaimMessage(claimId, 'success', 'Handover confirmed. Both reports are now resolved.');
+    await loadItems();
+    await render();
+  } catch (error) {
+    rememberClaimMessage(claimId, 'error', error.message || 'The handover could not be confirmed.');
+    if (submit) submit.disabled = false;
+    renderClaimFeedback(claimId);
+  }
+}
+async function cancelClaim(claimId, button) {
+  button.disabled = true;
+  try {
+    await api(`/claims/${claimId}/cancel`, { method: 'POST' });
+    handoverCodes.delete(String(claimId));
+    rememberClaimMessage(claimId, 'success', 'This claim was cancelled.');
+    await render();
+  } catch (error) {
+    button.disabled = false;
+    rememberClaimMessage(claimId, 'error', error.message || 'The claim could not be cancelled.');
+    renderClaimFeedback(claimId);
+  }
+}
+async function renderClaimDetail(container, key) {
+  if (!backendAvailable) {
+    container.innerHTML = empty('Claims need the live API', 'Start the backend to view or act on a claim.');
+    return;
+  }
+  container.innerHTML = await loadPartial('pages/claim-detail.html');
+  const claimId = decodeURIComponent(key);
+  let claim;
+  try {
+    const claims = await api('/claims/me');
+    claim = claims.find((entry) => String(entry.id) === String(claimId));
+  } catch (error) {
+    container.innerHTML = empty('Claim unavailable', error.message || 'The live API could not load this claim.');
+    return;
+  }
+  if (!claim) {
+    container.innerHTML = empty('Claim not found', 'It may not belong to the signed-in user or may no longer be available.');
+    return;
+  }
+
+  const statusValue = String(claim.status || '').toUpperCase();
+  const role = String(claim.role || '').toUpperCase();
+  const statusNode = document.getElementById('claim-detail-status');
+  statusNode.textContent = claimStatusLabel(statusValue);
+  statusNode.classList.add(claimStatusClass(statusValue));
+  document.getElementById('claim-detail-title').textContent = `${claimItemName(claim.lostItem)} → ${claimItemName(claim.foundItem)}`;
+  document.getElementById('claim-detail-role').textContent =
+    role === 'FINDER' ? 'You reported the found item.' : 'You reported the lost item.';
+  document.getElementById('claim-lost-item').textContent = claimItemName(claim.lostItem);
+  document.getElementById('claim-found-item').textContent = claimItemName(claim.foundItem);
+  const score = Number(claim.matchScore);
+  document.getElementById('claim-match-score').textContent = Number.isFinite(score)
+    ? `Similarity context: ${Math.round(score * 100)}% (not proof of ownership)`
+    : 'Similarity context is unavailable';
+  document.getElementById('claim-created-at').textContent = claimDateTime(claim.createdAt);
+  document.getElementById('claim-verified-at').textContent = claim.verifiedAt ? claimDateTime(claim.verifiedAt) : 'Not yet verified';
+  document.getElementById('claim-resolved-at').textContent = claim.resolvedAt ? claimDateTime(claim.resolvedAt) : 'Not yet resolved';
+
+  const stateNote = document.getElementById('claim-state-note');
+  const verificationSection = document.getElementById('claim-verification-section');
+  const handoverSection = document.getElementById('claim-handover-section');
+  const cancelSection = document.getElementById('claim-cancel-section');
+  if (claim.canVerify) {
+    verificationSection.hidden = false;
+    const remaining = claim.verificationAttemptsRemaining;
+    document.getElementById('claim-attempt-note').textContent = Number.isFinite(Number(remaining))
+      ? `${remaining} verification attempt${Number(remaining) === 1 ? '' : 's'} remaining.`
+      : 'Answer all three private questions.';
+    document
+      .getElementById('claim-verification-form')
+      .addEventListener('submit', (event) => verifyClaim(event, claim.id));
+  } else if (statusValue === 'PENDING_VERIFICATION') {
+    stateNote.textContent =
+      role === 'FINDER'
+        ? 'The lost-item owner must complete private verification before a handover can be arranged.'
+        : 'This claim is awaiting a server-authorized verification step.';
+  }
+
+  if (statusValue === 'VERIFIED') {
+    handoverSection.hidden = false;
+    const code = handoverCodes.get(String(claim.id));
+    const codeCard = document.getElementById('claim-code-card');
+    if (code) {
+      codeCard.hidden = false;
+      document.getElementById('claim-handover-code').textContent = code;
+      document.getElementById('copy-handover-code').addEventListener('click', () => copyHandoverCode(claim.id));
+    } else if (role === 'CLAIMANT') {
+      document.getElementById('claim-code-note').textContent =
+        'The one-time code is shown immediately after verification and is not saved in local storage or a URL.';
+    }
+    if (claim.canResolve) {
+      document.getElementById('claim-resolve-form').hidden = false;
+      document.getElementById('claim-resolve-form').addEventListener('submit', (event) => resolveClaim(event, claim.id));
+      document.getElementById('claim-handover-instruction').textContent =
+        'At the handover, enter the one-time code supplied by the verified owner.';
+    } else if (role === 'FINDER') {
+      document.getElementById('claim-handover-instruction').textContent =
+        'Only the server-authorized finder can confirm this handover.';
+    } else {
+      document.getElementById('claim-handover-instruction').textContent =
+        'Meet the finder and share the one-time code only in person.';
+    }
+  } else if (statusValue === 'RESOLVED') {
+    stateNote.textContent = 'Handover confirmed. Both reports have been resolved.';
+  } else if (statusValue === 'REJECTED') {
+    stateNote.textContent = 'This claim was rejected after verification did not pass.';
+  } else if (statusValue === 'CANCELLED') {
+    stateNote.textContent = 'This claim was cancelled before handover.';
+  }
+
+  if (claim.canCancel) {
+    cancelSection.hidden = false;
+    document.getElementById('claim-cancel-button').addEventListener('click', (event) => cancelClaim(claim.id, event.currentTarget));
+  }
+  renderClaimFeedback(claim.id);
 }
 
 // ============================================================
@@ -600,10 +878,14 @@ async function renderNow() {
     'report-lost': 'Report Lost',
     'report-found': 'Report Found',
     reports: 'My Reports',
+    claims: 'My Claims',
     settings: 'Settings',
   };
-  const isDetail = activePage.startsWith('item-');
-  wireShell(isDetail ? 'Item Details' : titles[activePage] || 'Dashboard');
+  const isItemDetail = activePage.startsWith('item-');
+  const isClaimDetail = activePage.startsWith('claim-');
+  wireShell(
+    isItemDetail ? 'Item Details' : isClaimDetail ? 'Claim Details' : titles[activePage] || 'Dashboard',
+  );
 
   const content = document.getElementById('page-content');
   if (activePage === 'dashboard') await renderDashboard(content);
@@ -611,8 +893,10 @@ async function renderNow() {
   else if (activePage === 'report-lost') await renderReportForm(content, 'LOST');
   else if (activePage === 'report-found') await renderReportForm(content, 'FOUND');
   else if (activePage === 'reports') await renderReports(content);
+  else if (activePage === 'claims') await renderClaims(content);
   else if (activePage === 'settings') await renderSettings(content);
-  else if (isDetail) await renderDetail(content, activePage.slice(5));
+  else if (isItemDetail) await renderDetail(content, activePage.slice(5));
+  else if (isClaimDetail) await renderClaimDetail(content, activePage.slice(6));
   else await renderDashboard(content);
 }
 window.onGoogleLibraryLoad = setupGoogle;
