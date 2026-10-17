@@ -1,0 +1,49 @@
+<div class="form-wrap">
+  <div class="page-intro">
+    <span class="eyebrow" id="report-eyebrow"></span>
+    <h2 id="report-heading"></h2>
+  </div>
+  <form class="form-card" id="report-form">
+    <div class="form-section">
+      <h3>Basic information</h3>
+      <div class="two-col">
+        <label>Item name *<input required name="title" placeholder="e.g. Black wallet"></label>
+        <label>Category *<select required name="category" id="category"><option value="">Select category</option></select></label>
+      </div>
+      <div class="two-col">
+        <label>Color *<select required name="color" id="color"><option value="">Select color</option></select></label>
+        <label>Location *<select required name="location" id="location"><option value="">Select campus location</option></select></label>
+      </div>
+      <label>Description *<textarea required name="description" rows="4"></textarea></label>
+    </div>
+    <div class="form-section">
+      <div class="two-col">
+        <label>Date *<input required name="date" type="date"></label>
+        <label>Approximate time<input name="time" type="time"></label>
+      </div>
+      <label>Photo <span id="photo-flag"></span>
+        <input name="image" type="file" accept="image/jpeg,image/png,image/gif,image/webp" onchange="previewImage(this)">
+        <span class="input-help">JPG, PNG, GIF, or WebP; maximum 5 MB.</span>
+      </label>
+      <div id="image-preview" class="image-preview">No image selected</div>
+    </div>
+    <section class="form-section verification-details" id="verification-details" hidden>
+      <h3>🔒 Private identifying details</h3>
+      <p class="dsa-note">PRIVATE — Saved once with your lost report. Only authorised staff can use these details to review a later claim; they are never shown to the finder or public listings.</p>
+      <label>Interior color or lining *
+        <input name="interiorColorOrLining" placeholder="e.g. Red lining, beige inside">
+      </label>
+      <label>Unique marks, scratches, stickers, or engravings *
+        <input name="uniqueMarks" placeholder="e.g. Scratch on bottom left corner, initials written in blue">
+      </label>
+      <label>What does it contain? *
+        <input name="contents" placeholder="e.g. 3 debit cards, college ID, some cash">
+      </label>
+      <p class="verification-info">✓ Saved with this report — you will not be asked to enter them again<br>✓ Staff compare them privately with the found report after you create a claim<br>✓ Do not include banking, card, government-ID, or phone-number details</p>
+    </section>
+    <div class="form-actions">
+      <button type="button" class="btn secondary" onclick="navigate('dashboard')">Cancel</button>
+      <button class="btn primary">Submit report</button>
+    </div>
+  </form>
+</div>

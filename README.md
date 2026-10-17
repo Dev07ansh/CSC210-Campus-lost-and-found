@@ -22,7 +22,7 @@ mvn "-Dmaven.repo.local=$PWD\.m2" spring-boot:run
 
 ```powershell
 cd frontend
-python -m http.server 5500
+.\run-demo.bat
 ```
 
 Open [http://localhost:5500](http://localhost:5500). The client calls `http://localhost:8080/api`.

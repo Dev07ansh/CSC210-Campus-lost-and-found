@@ -1,5 +1,6 @@
 package com.csc210.backend.controller;
 import com.csc210.backend.model.FoundItem;
+import com.csc210.backend.service.CurrentUserService;
 import com.csc210.backend.service.FoundItemService;
 import com.csc210.backend.service.ImageStorageService;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -16,21 +17,22 @@ import java.util.List;
 public class FoundItemController {
     private final FoundItemService service;
     private final ImageStorageService images;
+    private final CurrentUserService currentUsers;
 
-    public FoundItemController(FoundItemService service, ImageStorageService images) { this.service = service; this.images = images; }
+    public FoundItemController(FoundItemService service, ImageStorageService images, CurrentUserService currentUsers) { this.service = service; this.images = images; this.currentUsers = currentUsers; }
 
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
-    public FoundItem create(@RequestBody FoundItem item) {
+    public FoundItem create(@RequestHeader(value = "X-User-Email", required = false) String userEmail, @RequestBody FoundItem item) {
         if (item.getImageUrl() == null || item.getImageUrl().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "An image is required for a found-item report.");
         }
-        return service.save(item);
+        return service.create(item, currentUsers.requireUser(userEmail));
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public FoundItem createWithImage(@RequestPart("item") FoundItem item, @RequestPart(value = "image", required = false) MultipartFile image) {
+    public FoundItem createWithImage(@RequestHeader(value = "X-User-Email", required = false) String userEmail, @RequestPart("item") FoundItem item, @RequestPart(value = "image", required = false) MultipartFile image) {
         item.setImageUrl(images.store(image, true));
-        return service.save(item);
+        return service.create(item, currentUsers.requireUser(userEmail));
     }
 
     @GetMapping public List<FoundItem> all(){return service.all();}

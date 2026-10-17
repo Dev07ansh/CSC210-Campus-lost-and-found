@@ -1,0 +1,35 @@
+<button class="text-btn" onclick="navigate('claims')">← Back to my claims</button>
+<article class="claim-detail">
+  <div class="claim-detail-heading">
+    <div>
+      <span class="claim-status" id="claim-detail-status"></span>
+      <h2 id="claim-detail-title"></h2>
+      <p class="lead" id="claim-detail-role"></p>
+    </div>
+  </div>
+
+  <p class="claim-state-note" id="claim-state-note" aria-live="polite"></p>
+  <dl class="claim-summary">
+    <div><dt>Lost report</dt><dd id="claim-lost-item"></dd></div>
+    <div><dt>Found report</dt><dd id="claim-found-item"></dd></div>
+    <div><dt>Match context</dt><dd id="claim-match-score"></dd></div>
+    <div><dt>Created</dt><dd id="claim-created-at"></dd></div>
+    <div><dt>Staff review</dt><dd id="claim-reviewed-at"></dd></div>
+    <div><dt>Handover completed</dt><dd id="claim-resolved-at"></dd></div>
+  </dl>
+
+  <section class="claim-workflow-section" id="claim-review-section">
+    <span class="eyebrow">Step 1</span>
+    <h3 id="claim-review-heading">Staff review</h3>
+    <p class="dsa-note" id="claim-review-instruction"></p>
+    <p class="claim-privacy-note">Your saved identifying details are not shown here and are never shared with the finder. Only authorised staff can review them.</p>
+  </section>
+
+  <section class="claim-workflow-section claim-cancel-section" id="claim-cancel-section" hidden>
+    <h3>Cancel this claim</h3>
+    <p class="dsa-note">Cancelling ends this claim. The reports remain active unless staff has already completed the handover.</p>
+    <button type="button" class="btn secondary" id="claim-cancel-button">Cancel claim</button>
+  </section>
+
+  <p class="claim-result" id="claim-feedback" aria-live="polite"></p>
+</article>

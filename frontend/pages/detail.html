@@ -1,0 +1,21 @@
+<button class="text-btn" onclick="navigate('browse')">← Back to search</button>
+<div class="details">
+  <div class="details-image" id="details-image"></div>
+  <div class="details-body">
+    <span class="badge" id="details-badge"></span>
+    <h2 id="details-title"></h2>
+    <p class="lead" id="details-description"></p>
+    <dl>
+      <div><dt>Category</dt><dd id="details-category"></dd></div>
+      <div><dt>Color</dt><dd id="details-color"></dd></div>
+      <div><dt>Location</dt><dd id="details-location"></dd></div>
+      <div><dt>Date</dt><dd id="details-date"></dd></div>
+    </dl>
+    <section class="match-section" id="match-section" hidden>
+      <h3>Possible found-item matches</h3>
+      <p id="match-note" class="dsa-note">Loading suggested candidates…</p>
+      <div id="matches" class="match-list"></div>
+      <p id="match-claim-result" class="claim-result" aria-live="polite"></p>
+    </section>
+  </div>
+</div>

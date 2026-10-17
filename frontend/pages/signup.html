@@ -1,0 +1,17 @@
+<main class="auth-page">
+  <div class="auth-brand"><div class="brand-mark">LF</div>Lost &amp; Found</div>
+  <div class="auth-card">
+    <span class="eyebrow">Campus platform</span>
+    <h1>Create your account</h1>
+    <p>Use your university email to get started.</p>
+    <p id="auth-message" class="auth-message"></p>
+    <form onsubmit="handleAuth(event,'signup')">
+      <label>Full name<input name="name" required></label>
+      <label>Email<input name="email" type="email" required></label>
+      <label>Password<input name="password" type="password" required></label>
+      <label>Confirm password<input name="confirm" type="password" required></label>
+      <button class="btn primary full">Create account</button>
+    </form>
+    <div class="auth-switch">Already have an account? <button class="text-btn" onclick="navigate('login')">Log in</button></div>
+  </div>
+</main>

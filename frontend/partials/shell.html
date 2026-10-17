@@ -1,0 +1,46 @@
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="brand-mark">LF</div>
+      <div>Lost &amp; Found<span>Campus platform</span></div>
+    </div>
+    <nav id="sidebar-nav">
+      <button data-page="dashboard" onclick="navigate('dashboard')">⌂ Dashboard</button>
+      <button data-page="browse" onclick="navigate('browse')">⌕ Browse &amp; Search</button>
+      <button data-page="report-lost" onclick="navigate('report-lost')">＋ Report Lost</button>
+      <button data-page="report-found" onclick="navigate('report-found')">＋ Report Found</button>
+      <button data-page="reports" onclick="navigate('reports')">▣ My Reports</button>
+      <button data-page="claims" onclick="navigate('claims')">✓ My Claims</button>
+      <button data-page="staff-review" id="staff-review-nav" onclick="navigate('staff-review')" hidden>▤ Staff Review</button>
+      <button data-page="notifications" onclick="navigate('notifications')">
+        <span class="nav-button-content">
+          <span>◇ Notifications</span>
+          <span class="notification-count" id="notification-unread-badge" hidden aria-label="Unread notifications"></span>
+        </span>
+      </button>
+      <button data-page="settings" onclick="navigate('settings')">⚙ Settings</button>
+    </nav>
+    <div class="sidebar-bottom">
+      <button data-page="help" onclick="navigate('help')">? Help</button>
+      <button onclick="logout()">↪ Log out</button>
+    </div>
+  </aside>
+  <main class="main">
+    <header class="topbar">
+      <button class="mobile-menu" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
+      <div>
+        <div class="eyebrow">Campus Lost &amp; Found</div>
+        <h1 id="page-title"></h1>
+      </div>
+      <div class="topbar-actions">
+        <button class="icon-btn notification-icon-button" type="button" onclick="navigate('notifications')" aria-label="Open notifications" title="Notifications">
+          <span aria-hidden="true">◇</span>
+          <span class="notification-count notification-count-topbar" id="topbar-notification-badge" hidden aria-label="Unread notifications"></span>
+        </button>
+        <button class="avatar" id="avatar-btn" onclick="navigate('settings')"></button>
+      </div>
+    </header>
+    <section class="content" id="page-content"></section>
+  </main>
+</div>
+<div class="notification-toast-region" id="notification-toast-region" aria-live="polite" aria-atomic="false"></div>

@@ -1,0 +1,35 @@
+<div class="hero">
+  <div>
+    <span class="badge neutral">Welcome back</span>
+    <h2>Find it. Report it. Return it.</h2>
+    <p>Report and retrieve lost or found campus items in one place.</p>
+  </div>
+  <div class="hero-actions">
+    <button class="btn primary" onclick="navigate('report-lost')">Report Lost</button>
+    <button class="btn secondary" onclick="navigate('report-found')">Report Found</button>
+  </div>
+</div>
+<div class="search-hero">
+  <div>
+    <span class="eyebrow">Search retrieval</span>
+    <h3>Looking for something?</h3>
+    <p class="dsa-note">Found-item search uses the supplied normalizer and prefix trie.</p>
+  </div>
+  <div class="search-row">
+    <input id="home-search" placeholder="Search e.g. black wallet" />
+    <button class="btn primary" onclick="searchHome()">Search</button>
+  </div>
+</div>
+<div class="stats">
+  <div class="stat"><span>Active reports</span><strong id="stat-active"></strong></div>
+  <div class="stat"><span>Found reports</span><strong id="stat-found"></strong></div>
+  <div class="stat"><span>Lost reports</span><strong id="stat-lost"></strong></div>
+</div>
+<div class="section-heading">
+  <h3>Recent reports</h3>
+  <div>
+    <span id="dashboard-status"></span>
+    <button class="text-btn" onclick="navigate('browse')">View all →</button>
+  </div>
+</div>
+<div class="item-grid" id="dashboard-grid"></div>
