@@ -5,10 +5,19 @@ import org.springframework.stereotype.Component;
 
 import javax.sql.DataSource;
 import java.sql.*;
+import java.util.List;
+import java.util.Map;
 
 /** SQLite needs explicit indexes for constraints that Hibernate's update mode may skip. */
 @Component
 public class ClaimSchemaMigrator {
+    private static final List<String> CLAIM_STATUSES = List.of(
+            "PENDING_STAFF_REVIEW", "APPROVED_FOR_HANDOVER", "RESOLVED", "REJECTED", "CANCELLED",
+            // Read aliases remain supported while an interrupted older migration is repaired.
+            "PENDING_VERIFICATION", "VERIFIED");
+    private static final Map<String, String> LEGACY_STATUS_REPLACEMENTS = Map.of(
+            "PENDING_VERIFICATION", "PENDING_STAFF_REVIEW",
+            "VERIFIED", "APPROVED_FOR_HANDOVER");
     private final DataSource dataSource;
 
     public ClaimSchemaMigrator(DataSource dataSource) { this.dataSource = dataSource; }
@@ -16,22 +25,40 @@ public class ClaimSchemaMigrator {
     @PostConstruct
     public void migrate() {
         try (Connection connection = dataSource.getConnection()) {
+            boolean originalAutoCommit = connection.getAutoCommit();
+            boolean foreignKeysWereEnabled = foreignKeysEnabled(connection);
+            // Rebuilding an SQLite table requires DROP/RENAME. Disable FK
+            // enforcement before the transaction so child tables continue to
+            // reference the final table name after the atomic replacement.
+            setForeignKeysEnabled(connection, false);
             connection.setAutoCommit(false);
-            try (Statement statement = connection.createStatement()) {
-                ensureReportOwnershipColumns(connection, statement);
-                createClaimTables(statement);
-                migrateLegacySecrets(connection);
-                statement.executeUpdate("CREATE UNIQUE INDEX IF NOT EXISTS lost_item_secret_lost_item_unique ON lost_item_secret (lost_item_id)");
-                statement.executeUpdate("CREATE UNIQUE INDEX IF NOT EXISTS claim_attempt_number_unique ON claim_verification_attempt (claim_id, attempt_number)");
-                statement.executeUpdate("CREATE UNIQUE INDEX IF NOT EXISTS claims_one_active_lost_item ON claims (lost_item_id) WHERE status IN ('PENDING_VERIFICATION', 'VERIFIED')");
-                statement.executeUpdate("CREATE UNIQUE INDEX IF NOT EXISTS claims_one_active_found_item ON claims (found_item_id) WHERE status IN ('PENDING_VERIFICATION', 'VERIFIED')");
-                if (tableExists(connection, "user")) {
-                    statement.executeUpdate("CREATE UNIQUE INDEX IF NOT EXISTS user_email_unique ON \"user\" (email)");
+            try {
+                try (Statement statement = connection.createStatement()) {
+                    ensureReportOwnershipColumns(connection, statement);
+                    createClaimTables(statement);
+                    ensureStaffReviewColumns(connection, statement);
+                    // An older Hibernate-generated table has a CHECK which
+                    // rejects PENDING_STAFF_REVIEW. Rebuild first and transform
+                    // legacy values while copying; an UPDATE before this point
+                    // would itself fail the old CHECK.
+                    SqliteEnumConstraintMigrator.rebuildIfEnumCheckIsOutdated(connection, "claims", "status",
+                            CLAIM_STATUSES, LEGACY_STATUS_REPLACEMENTS);
+                    migrateLegacySecrets(connection);
+                    migrateLegacyClaimStatuses(connection, statement);
+                    statement.executeUpdate("CREATE UNIQUE INDEX IF NOT EXISTS lost_item_secret_lost_item_unique ON lost_item_secret (lost_item_id)");
+                    statement.executeUpdate("CREATE UNIQUE INDEX IF NOT EXISTS claim_attempt_number_unique ON claim_verification_attempt (claim_id, attempt_number)");
+                    rebuildClaimIndexes(statement);
+                    if (tableExists(connection, "user")) {
+                        statement.executeUpdate("CREATE UNIQUE INDEX IF NOT EXISTS user_email_unique ON \"user\" (email)");
+                    }
                 }
                 connection.commit();
             } catch (SQLException exception) {
                 connection.rollback();
                 throw exception;
+            } finally {
+                connection.setAutoCommit(originalAutoCommit);
+                setForeignKeysEnabled(connection, foreignKeysWereEnabled);
             }
         } catch (SQLException exception) {
             throw new IllegalStateException("Could not initialize claim workflow storage.", exception);
@@ -84,6 +111,62 @@ public class ClaimSchemaMigrator {
                     passed BOOLEAN NOT NULL,
                     attempted_at TIMESTAMP NOT NULL
                 )
+                """);
+    }
+
+    /** Adds review audit fields without dropping an existing claims table. */
+    private void ensureStaffReviewColumns(Connection connection, Statement statement) throws SQLException {
+        ensureColumn(connection, statement, "claims", "reviewed_by_id", "BIGINT");
+        ensureColumn(connection, statement, "claims", "reviewed_at", "TIMESTAMP");
+        ensureColumn(connection, statement, "claims", "staff_review_note", "VARCHAR(2000)");
+        ensureColumn(connection, statement, "claims", "completed_by_id", "BIGINT");
+        ensureColumn(connection, statement, "claims", "completed_at", "TIMESTAMP");
+    }
+
+    /**
+     * Old claims used a self-service verification lifecycle. Upgrade their
+     * state before the active-claim indexes are rebuilt, but keep enum aliases
+     * in Java as a safeguard for a partially completed legacy migration.
+     */
+    private void migrateLegacyClaimStatuses(Connection connection, Statement statement) throws SQLException {
+        if (!tableExists(connection, "claims")) return;
+        statement.executeUpdate("UPDATE claims SET status = 'PENDING_STAFF_REVIEW' WHERE status = 'PENDING_VERIFICATION'");
+        statement.executeUpdate("""
+                UPDATE claims
+                SET status = 'APPROVED_FOR_HANDOVER',
+                    reviewed_at = COALESCE(reviewed_at, verified_at)
+                WHERE status = 'VERIFIED'
+                """);
+        // Statuses copied from an old table may already have been translated
+        // by the enum-CHECK rebuild. Preserve the old verification timestamp
+        // as the staff-review timestamp in that case as well.
+        statement.executeUpdate("""
+                UPDATE claims
+                SET reviewed_at = COALESCE(reviewed_at, verified_at)
+                WHERE status = 'APPROVED_FOR_HANDOVER'
+                  AND verified_at IS NOT NULL
+                """);
+    }
+
+    private void rebuildClaimIndexes(Statement statement) throws SQLException {
+        // Hibernate's schema updater will usually make these, but a SQLite
+        // table replacement drops every table-owned index. Recreate them here
+        // so lookup performance never depends on startup ordering.
+        statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_claim_claimant ON claims (claimant_id)");
+        statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_claim_finder ON claims (finder_id)");
+        statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_claim_lost_item ON claims (lost_item_id)");
+        statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_claim_found_item ON claims (found_item_id)");
+        statement.executeUpdate("DROP INDEX IF EXISTS claims_one_active_lost_item");
+        statement.executeUpdate("DROP INDEX IF EXISTS claims_one_active_found_item");
+        statement.executeUpdate("""
+                CREATE UNIQUE INDEX IF NOT EXISTS claims_one_active_lost_item
+                ON claims (lost_item_id)
+                WHERE status IN ('PENDING_STAFF_REVIEW', 'APPROVED_FOR_HANDOVER', 'PENDING_VERIFICATION', 'VERIFIED')
+                """);
+        statement.executeUpdate("""
+                CREATE UNIQUE INDEX IF NOT EXISTS claims_one_active_found_item
+                ON claims (found_item_id)
+                WHERE status IN ('PENDING_STAFF_REVIEW', 'APPROVED_FOR_HANDOVER', 'PENDING_VERIFICATION', 'VERIFIED')
                 """);
     }
 
@@ -144,6 +227,24 @@ public class ClaimSchemaMigrator {
         try (Statement statement = connection.createStatement(); ResultSet columns = statement.executeQuery("PRAGMA table_info(\"" + table + "\")")) {
             while (columns.next()) if (column.equalsIgnoreCase(columns.getString("name"))) return true;
             return false;
+        }
+    }
+
+    private void ensureColumn(Connection connection, Statement statement, String table, String column, String type) throws SQLException {
+        if (!hasColumn(connection, table, column)) {
+            statement.executeUpdate("ALTER TABLE \"" + table + "\" ADD COLUMN \"" + column + "\" " + type);
+        }
+    }
+
+    private boolean foreignKeysEnabled(Connection connection) throws SQLException {
+        try (Statement statement = connection.createStatement(); ResultSet value = statement.executeQuery("PRAGMA foreign_keys")) {
+            return value.next() && value.getInt(1) != 0;
+        }
+    }
+
+    private void setForeignKeysEnabled(Connection connection, boolean enabled) throws SQLException {
+        try (Statement statement = connection.createStatement()) {
+            statement.execute("PRAGMA foreign_keys = " + (enabled ? "ON" : "OFF"));
         }
     }
 

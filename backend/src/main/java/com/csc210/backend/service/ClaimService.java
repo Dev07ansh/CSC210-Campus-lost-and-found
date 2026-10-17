@@ -1,47 +1,61 @@
 package com.csc210.backend.service;
 
 import com.csc210.backend.dsa.SimilarityScorer;
-import com.csc210.backend.model.*;
-import com.csc210.backend.repository.*;
+import com.csc210.backend.model.Claim;
+import com.csc210.backend.model.ClaimStatus;
+import com.csc210.backend.model.FoundItem;
+import com.csc210.backend.model.LostItem;
+import com.csc210.backend.model.LostItemSecret;
+import com.csc210.backend.model.User;
+import com.csc210.backend.repository.ClaimRepository;
+import com.csc210.backend.repository.FoundItemRepository;
+import com.csc210.backend.repository.LostItemRepository;
+import com.csc210.backend.repository.LostItemSecretRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Locale;
 
-/** Keeps candidate matching and proof-of-ownership verification as two separate operations. */
+/**
+ * A match only suggests a candidate. The owner files one claim using their
+ * already-saved private details; an independent staff member reviews those
+ * details in person and controls the handover outcome.
+ */
 @Service
 public class ClaimService {
-    public static final double VERIFICATION_THRESHOLD = 0.60;
-    public static final int MAX_VERIFICATION_ATTEMPTS = 3;
-    private static final EnumSet<ClaimStatus> ACTIVE_CLAIM_STATES = EnumSet.of(ClaimStatus.PENDING_VERIFICATION, ClaimStatus.VERIFIED);
-    private static final SecureRandom RANDOM = new SecureRandom();
+    private static final EnumSet<ClaimStatus> ACTIVE_CLAIM_STATES = EnumSet.of(
+            ClaimStatus.PENDING_STAFF_REVIEW, ClaimStatus.APPROVED_FOR_HANDOVER,
+            ClaimStatus.PENDING_VERIFICATION, ClaimStatus.VERIFIED);
+    private static final EnumSet<ClaimStatus> REVIEW_QUEUE_STATES = EnumSet.of(
+            ClaimStatus.PENDING_STAFF_REVIEW, ClaimStatus.APPROVED_FOR_HANDOVER,
+            ClaimStatus.PENDING_VERIFICATION, ClaimStatus.VERIFIED);
 
     private final ClaimRepository claims;
-    private final ClaimVerificationAttemptRepository verificationAttempts;
     private final LostItemRepository lostItems;
     private final FoundItemRepository foundItems;
     private final LostItemSecretRepository secrets;
     private final SimilarityScorer similarityScorer;
     private final CurrentUserService currentUsers;
+    private final StaffAuthorizationService staffAccess;
+    private final NotificationService notifications;
 
-    public ClaimService(ClaimRepository claims, ClaimVerificationAttemptRepository verificationAttempts,
-                        LostItemRepository lostItems, FoundItemRepository foundItems,
-                        LostItemSecretRepository secrets, SimilarityScorer similarityScorer,
-                        CurrentUserService currentUsers) {
+    public ClaimService(ClaimRepository claims, LostItemRepository lostItems,
+                        FoundItemRepository foundItems, LostItemSecretRepository secrets,
+                        SimilarityScorer similarityScorer, CurrentUserService currentUsers,
+                        StaffAuthorizationService staffAccess, NotificationService notifications) {
         this.claims = claims;
-        this.verificationAttempts = verificationAttempts;
         this.lostItems = lostItems;
         this.foundItems = foundItems;
         this.secrets = secrets;
         this.similarityScorer = similarityScorer;
         this.currentUsers = currentUsers;
+        this.staffAccess = staffAccess;
+        this.notifications = notifications;
     }
 
     @Transactional
@@ -63,9 +77,9 @@ public class ClaimService {
         if (!isActive(lost.getStatus()) || !isActive(found.getStatus())) {
             throw conflict("Both reports must still be active before a claim can begin.");
         }
-        LostItemSecret secret = secrets.findByLostItemId(lost.getId()).orElse(null);
+        LostItemSecret secret = secretFor(lost);
         if (secret == null || !secret.isComplete()) {
-            throw conflict("The lost report needs all three private verification details before a claim can begin.");
+            throw conflict("The lost report needs all three private details before a claim can begin.");
         }
         if (claims.existsByLostItemIdAndStatusIn(lost.getId(), ACTIVE_CLAIM_STATES)
                 || claims.existsByFoundItemIdAndStatusIn(found.getId(), ACTIVE_CLAIM_STATES)) {
@@ -77,13 +91,16 @@ public class ClaimService {
         claim.setFoundItem(found);
         claim.setClaimant(lost.getReporter());
         claim.setFinder(found.getReporter());
-        claim.setStatus(ClaimStatus.PENDING_VERIFICATION);
+        claim.setStatus(ClaimStatus.PENDING_STAFF_REVIEW);
         claim.setMatchScore(similarityScorer.score(lost, found));
         claim.setCreatedAt(LocalDateTime.now());
         Claim saved = claims.save(claim);
-        return toResponse(saved == null ? claim : saved, currentUser);
+        Claim persisted = saved == null ? claim : saved;
+        notifications.claimCreated(persisted);
+        return toResponse(persisted, currentUser);
     }
 
+    /** Claimants and finders see status and public report summaries, never private details. */
     @Transactional(readOnly = true)
     public List<ClaimResponse> mine(User currentUser) {
         if (currentUser.getId() == null) return List.of();
@@ -91,63 +108,63 @@ public class ClaimService {
                 .map(claim -> toResponse(claim, currentUser)).toList();
     }
 
-    @Transactional
-    public VerificationResponse verify(Long claimId, User currentUser, VerificationRequest request) {
-        if (request == null) throw badRequest("Verification answers are required.");
-        Claim claim = claim(claimId);
-        requireClaimant(claim, currentUser);
-        requireStatus(claim, ClaimStatus.PENDING_VERIFICATION, "This claim is not awaiting verification.");
-
-        LostItemSecret secret = secrets.findByLostItemId(claim.getLostItem().getId())
-                .orElseThrow(() -> badRequest("This lost report has no private verification details."));
-        if (!secret.isComplete()) throw badRequest("This lost report has incomplete private verification details.");
-
-        double interiorScore = jaccard(secret.getInteriorColorOrLining(), request.interiorColorOrLining());
-        double marksScore = jaccard(secret.getUniqueMarks(), request.uniqueMarks());
-        double contentsScore = jaccard(secret.getContents(), request.contents());
-        double decisionScore = Math.min(interiorScore, Math.min(marksScore, contentsScore));
-        boolean passed = interiorScore >= VERIFICATION_THRESHOLD
-                && marksScore >= VERIFICATION_THRESHOLD
-                && contentsScore >= VERIFICATION_THRESHOLD;
-
-        int attemptNumber = verificationAttempts.countByClaimId(claim.getId()) + 1;
-        verificationAttempts.save(new ClaimVerificationAttempt(claim, attemptNumber, decisionScore, passed, LocalDateTime.now()));
-
-        String handoverCode = null;
-        boolean rejected = false;
-        if (passed) {
-            claim.setStatus(ClaimStatus.VERIFIED);
-            claim.setVerifiedAt(LocalDateTime.now());
-            handoverCode = newSixDigitCode();
-            claim.setHandoverCodeHash(hash(handoverCode));
-            claim.setHandoverCodeExpiresAt(LocalDateTime.now().plusMinutes(30));
-        } else if (attemptNumber >= MAX_VERIFICATION_ATTEMPTS) {
-            claim.setStatus(ClaimStatus.REJECTED);
-            rejected = true;
-        }
-        claims.save(claim);
-        int remaining = passed || rejected ? 0 : Math.max(0, MAX_VERIFICATION_ATTEMPTS - attemptNumber);
-        return new VerificationResponse(toResponse(claim, currentUser), passed, rejected, remaining, handoverCode);
+    /**
+     * This is deliberately the only API path that returns the owner's saved
+     * private details. The caller must be configured staff and independent of
+     * the claim, so a finder cannot use staff access to inspect an owner's data.
+     */
+    @Transactional(readOnly = true)
+    public List<StaffReviewClaimResponse> reviewQueue(User currentUser) {
+        requireIndependentStaff(currentUser, null);
+        return claims.findByStatusInOrderByCreatedAtDesc(REVIEW_QUEUE_STATES).stream()
+                .filter(claim -> !isParticipant(claim, currentUser))
+                .map(claim -> toStaffReviewResponse(claim, currentUser))
+                .toList();
     }
 
     @Transactional
-    public ClaimResponse resolve(Long claimId, User currentUser, ResolveRequest request) {
-        if (request == null || request.handoverCode() == null || request.handoverCode().isBlank()) {
-            throw badRequest("The finder must enter the one-time handover code.");
+    public StaffReviewClaimResponse review(Long claimId, User currentUser, ReviewRequest request) {
+        if (request == null || request.decision() == null || request.decision().isBlank()) {
+            throw badRequest("A staff review decision is required.");
         }
         Claim claim = claim(claimId);
-        requireFinder(claim, currentUser);
-        requireStatus(claim, ClaimStatus.VERIFIED, "Only a verified claim can be resolved.");
-        if (claim.getHandoverCodeExpiresAt() == null || LocalDateTime.now().isAfter(claim.getHandoverCodeExpiresAt())) {
-            throw conflict("The handover code has expired.");
+        requireIndependentStaff(currentUser, claim);
+        if (!isPendingStaffReview(claim.getStatus())) {
+            throw conflict("Only a claim awaiting staff review can be reviewed.");
         }
-        if (claim.getHandoverCodeHash() == null || !MessageDigest.isEqual(
-                hash(request.handoverCode().trim()).getBytes(StandardCharsets.UTF_8),
-                claim.getHandoverCodeHash().getBytes(StandardCharsets.UTF_8))) {
-            throw badRequest("The handover code is incorrect.");
+
+        ReviewDecision decision = ReviewDecision.parse(request.decision());
+        if (decision == ReviewDecision.APPROVE) {
+            LostItemSecret secret = secretFor(claim.getLostItem());
+            if (secret == null || !secret.isComplete()) {
+                throw conflict("This claim cannot be approved because its saved private details are incomplete.");
+            }
+            claim.setStatus(ClaimStatus.APPROVED_FOR_HANDOVER);
+        } else {
+            claim.setStatus(ClaimStatus.REJECTED);
+        }
+        claim.setReviewedBy(currentUser);
+        claim.setReviewedAt(LocalDateTime.now());
+        claim.setStaffReviewNote(normalizeNote(request.staffNote()));
+        claims.save(claim);
+        if (decision == ReviewDecision.APPROVE) notifications.claimApprovedForHandover(claim);
+        else notifications.claimRejected(claim);
+        return toStaffReviewResponse(claim, currentUser);
+    }
+
+    /** Staff confirms the physical handover; this resolves both related reports atomically. */
+    @Transactional
+    public StaffReviewClaimResponse completeHandover(Long claimId, User currentUser) {
+        Claim claim = claim(claimId);
+        requireIndependentStaff(currentUser, claim);
+        if (!isApprovedForHandover(claim.getStatus())) {
+            throw conflict("Only a staff-approved claim can be completed.");
         }
         claim.setStatus(ClaimStatus.RESOLVED);
-        claim.setResolvedAt(LocalDateTime.now());
+        LocalDateTime completedAt = LocalDateTime.now();
+        claim.setCompletedBy(currentUser);
+        claim.setCompletedAt(completedAt);
+        claim.setResolvedAt(completedAt);
         claim.setHandoverCodeHash(null);
         claim.setHandoverCodeExpiresAt(null);
         claim.getLostItem().setStatus("Resolved");
@@ -155,7 +172,8 @@ public class ClaimService {
         lostItems.save(claim.getLostItem());
         foundItems.save(claim.getFoundItem());
         claims.save(claim);
-        return toResponse(claim, currentUser);
+        notifications.claimResolved(claim);
+        return toStaffReviewResponse(claim, currentUser);
     }
 
     @Transactional
@@ -170,7 +188,12 @@ public class ClaimService {
         claim.setHandoverCodeHash(null);
         claim.setHandoverCodeExpiresAt(null);
         claims.save(claim);
+        notifications.claimCancelled(claim);
         return toResponse(claim, currentUser);
+    }
+
+    public StaffAccessResponse staffAccess(User currentUser) {
+        return new StaffAccessResponse(staffAccess.isStaff(currentUser));
     }
 
     private Claim claim(Long claimId) {
@@ -178,42 +201,64 @@ public class ClaimService {
         return claims.findById(claimId).orElseThrow(() -> notFound("Claim not found."));
     }
 
-    private void requireClaimant(Claim claim, User currentUser) {
-        if (!currentUsers.same(currentUser, claim.getClaimant())) throw forbidden("Only the claimant can verify ownership.");
-    }
-
-    private void requireFinder(Claim claim, User currentUser) {
-        if (!currentUsers.same(currentUser, claim.getFinder())) throw forbidden("Only the finder can confirm the handover code.");
+    private void requireIndependentStaff(User currentUser, Claim claim) {
+        staffAccess.requireStaff(currentUser);
+        if (claim != null && isParticipant(claim, currentUser)) {
+            throw forbidden("A claim participant cannot review their own claim.");
+        }
     }
 
     private void requireParticipant(Claim claim, User currentUser) {
-        if (!currentUsers.same(currentUser, claim.getClaimant()) && !currentUsers.same(currentUser, claim.getFinder())) {
+        if (!isParticipant(claim, currentUser)) {
             throw forbidden("Only a claim participant can perform this action.");
         }
     }
 
-    private void requireStatus(Claim claim, ClaimStatus status, String message) {
-        if (claim.getStatus() != status) throw conflict(message);
+    private boolean isParticipant(Claim claim, User currentUser) {
+        return currentUsers.same(currentUser, claim.getClaimant()) || currentUsers.same(currentUser, claim.getFinder());
     }
 
     private ClaimResponse toResponse(Claim claim, User currentUser) {
-        int attempts = claim.getId() == null ? 0 : verificationAttempts.countByClaimId(claim.getId());
         boolean claimant = currentUsers.same(currentUser, claim.getClaimant());
         boolean finder = currentUsers.same(currentUser, claim.getFinder());
+        boolean isStaff = staffAccess.isStaff(currentUser);
+        boolean independentStaff = isStaff && !claimant && !finder;
+        String role = claimant ? "CLAIMANT" : finder ? "FINDER" : isStaff ? "STAFF" : "";
         return new ClaimResponse(
                 claim.getId(),
                 report(claim.getLostItem()),
                 report(claim.getFoundItem()),
-                claim.getStatus(),
+                normalizeLegacyStatus(claim.getStatus()),
                 claim.getMatchScore(),
                 claim.getCreatedAt(),
-                claim.getVerifiedAt(),
+                claim.getReviewedAt(),
                 claim.getResolvedAt(),
-                claimant ? "CLAIMANT" : finder ? "FINDER" : "",
-                Math.max(0, MAX_VERIFICATION_ATTEMPTS - attempts),
-                claimant && claim.getStatus() == ClaimStatus.PENDING_VERIFICATION,
-                finder && claim.getStatus() == ClaimStatus.VERIFIED,
-                (claimant || finder) && ACTIVE_CLAIM_STATES.contains(claim.getStatus())
+                role,
+                (claimant || finder) && ACTIVE_CLAIM_STATES.contains(claim.getStatus()),
+                independentStaff && isPendingStaffReview(claim.getStatus()),
+                independentStaff && isApprovedForHandover(claim.getStatus()),
+                isStaff
+        );
+    }
+
+    private StaffReviewClaimResponse toStaffReviewResponse(Claim claim, User currentUser) {
+        requireIndependentStaff(currentUser, claim);
+        LostItemSecret secret = secretFor(claim.getLostItem());
+        return new StaffReviewClaimResponse(
+                claim.getId(),
+                staffReport(claim.getLostItem()),
+                staffReport(claim.getFoundItem()),
+                participant(claim.getClaimant()),
+                participant(claim.getFinder()),
+                normalizeLegacyStatus(claim.getStatus()),
+                claim.getMatchScore(),
+                claim.getCreatedAt(),
+                claim.getReviewedAt(),
+                claim.getCompletedAt(),
+                claim.getStaffReviewNote(),
+                privateDetails(secret),
+                isPendingStaffReview(claim.getStatus()),
+                isApprovedForHandover(claim.getStatus())
         );
     }
 
@@ -225,48 +270,104 @@ public class ClaimService {
         return new ReportSummary(item.getId(), item.getItemName(), item.getCategory(), item.getColor(), item.getLocation(), item.getImageUrl(), item.getStatus());
     }
 
-    private boolean isActive(String status) { return status != null && "active".equalsIgnoreCase(status); }
-
-    private double jaccard(String expected, String answer) {
-        Set<String> expectedWords = words(expected);
-        Set<String> answerWords = words(answer);
-        if (expectedWords.isEmpty() || answerWords.isEmpty()) return 0;
-        Set<String> shared = new HashSet<>(expectedWords);
-        shared.retainAll(answerWords);
-        Set<String> combined = new HashSet<>(expectedWords);
-        combined.addAll(answerWords);
-        return (double) shared.size() / combined.size();
+    /** Extra report context is intentionally available only in the staff review DTO. */
+    private StaffReportSummary staffReport(LostItem item) {
+        return new StaffReportSummary(item.getId(), item.getItemName(), item.getCategory(), item.getColor(),
+                item.getDescription(), item.getLocation(), item.getImageUrl(), item.getDateTime(), item.getStatus());
     }
 
-    private Set<String> words(String value) {
-        if (value == null) return Set.of();
-        return new HashSet<>(Arrays.stream(value.toLowerCase(Locale.ROOT)
-                        .replaceAll("[^\\p{L}\\p{N}\\s]", " ").split("\\s+"))
-                .filter(word -> !word.isBlank()).toList());
+    /** Extra report context is intentionally available only in the staff review DTO. */
+    private StaffReportSummary staffReport(FoundItem item) {
+        return new StaffReportSummary(item.getId(), item.getItemName(), item.getCategory(), item.getColor(),
+                item.getDescription(), item.getLocation(), item.getImageUrl(), item.getDateTime(), item.getStatus());
     }
 
-    private String newSixDigitCode() { return String.format(Locale.ROOT, "%06d", RANDOM.nextInt(1_000_000)); }
-
-    private String hash(String value) {
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 is unavailable.", exception);
-        }
+    private ParticipantSummary participant(User user) {
+        return new ParticipantSummary(user == null ? null : user.getName(), user == null ? null : user.getEmail());
     }
 
-    private ResponseStatusException badRequest(String message) { return new ResponseStatusException(HttpStatus.BAD_REQUEST, message); }
-    private ResponseStatusException forbidden(String message) { return new ResponseStatusException(HttpStatus.FORBIDDEN, message); }
-    private ResponseStatusException notFound(String message) { return new ResponseStatusException(HttpStatus.NOT_FOUND, message); }
-    private ResponseStatusException conflict(String message) { return new ResponseStatusException(HttpStatus.CONFLICT, message); }
+    private PrivateDetails privateDetails(LostItemSecret secret) {
+        return new PrivateDetails(
+                secret == null ? null : secret.getInteriorColorOrLining(),
+                secret == null ? null : secret.getUniqueMarks(),
+                secret == null ? null : secret.getContents());
+    }
+
+    private LostItemSecret secretFor(LostItem item) {
+        return item == null || item.getId() == null ? null : secrets.findByLostItemId(item.getId()).orElse(null);
+    }
+
+    private boolean isActive(String status) {
+        return status != null && "active".equalsIgnoreCase(status);
+    }
+
+    private boolean isPendingStaffReview(ClaimStatus status) {
+        return status == ClaimStatus.PENDING_STAFF_REVIEW || status == ClaimStatus.PENDING_VERIFICATION;
+    }
+
+    private boolean isApprovedForHandover(ClaimStatus status) {
+        return status == ClaimStatus.APPROVED_FOR_HANDOVER || status == ClaimStatus.VERIFIED;
+    }
+
+    private ClaimStatus normalizeLegacyStatus(ClaimStatus status) {
+        if (status == ClaimStatus.PENDING_VERIFICATION) return ClaimStatus.PENDING_STAFF_REVIEW;
+        if (status == ClaimStatus.VERIFIED) return ClaimStatus.APPROVED_FOR_HANDOVER;
+        return status;
+    }
+
+    private String normalizeNote(String value) {
+        if (value == null || value.isBlank()) return null;
+        String note = value.trim();
+        if (note.length() > 2000) throw badRequest("A staff review note cannot exceed 2000 characters.");
+        return note;
+    }
+
+    private ResponseStatusException badRequest(String message) {
+        return new ResponseStatusException(HttpStatus.BAD_REQUEST, message);
+    }
+
+    private ResponseStatusException forbidden(String message) {
+        return new ResponseStatusException(HttpStatus.FORBIDDEN, message);
+    }
+
+    private ResponseStatusException notFound(String message) {
+        return new ResponseStatusException(HttpStatus.NOT_FOUND, message);
+    }
+
+    private ResponseStatusException conflict(String message) {
+        return new ResponseStatusException(HttpStatus.CONFLICT, message);
+    }
 
     public record CreateClaimRequest(Long lostItemId, Long foundItemId) {}
-    public record VerificationRequest(String interiorColorOrLining, String uniqueMarks, String contents) {}
-    public record ResolveRequest(String handoverCode) {}
+    public record ReviewRequest(String decision, String staffNote) {}
     public record ReportSummary(Long id, String itemName, String category, String color, String location, String imageUrl, String status) {}
+    /** Includes report descriptions/timestamps only for the staff review workspace. */
+    public record StaffReportSummary(Long id, String itemName, String category, String color, String description,
+                                     String location, String imageUrl, LocalDateTime dateTime, String status) {}
+    public record ParticipantSummary(String name, String email) {}
+    /** Returned only from the staff-only review queue and review actions. */
+    public record PrivateDetails(String interiorColorOrLining, String uniqueMarks, String contents) {}
+    /** General claim response: deliberately contains no private owner details or staff notes. */
     public record ClaimResponse(Long id, ReportSummary lostItem, ReportSummary foundItem, ClaimStatus status,
-                                double matchScore, LocalDateTime createdAt, LocalDateTime verifiedAt, LocalDateTime resolvedAt,
-                                String role, int verificationAttemptsRemaining, boolean canVerify, boolean canResolve, boolean canCancel) {}
-    /** The plaintext handover code is populated only on the successful verification response. */
-    public record VerificationResponse(ClaimResponse claim, boolean passed, boolean rejected, int attemptsRemaining, String handoverCode) {}
+                                double matchScore, LocalDateTime createdAt, LocalDateTime reviewedAt, LocalDateTime resolvedAt,
+                                String role, boolean canCancel, boolean canReview, boolean canCompleteHandover, boolean isStaff) {}
+    public record StaffReviewClaimResponse(Long id, StaffReportSummary lostItem, StaffReportSummary foundItem,
+                                           ParticipantSummary claimant, ParticipantSummary finder, ClaimStatus status,
+                                           double matchScore, LocalDateTime createdAt, LocalDateTime reviewedAt,
+                                           LocalDateTime completedAt, String staffNote, PrivateDetails privateDetails,
+                                           boolean canReview, boolean canCompleteHandover) {}
+    public record StaffAccessResponse(boolean staff) {}
+
+    private enum ReviewDecision {
+        APPROVE, REJECT;
+
+        static ReviewDecision parse(String input) {
+            try {
+                return valueOf(input.trim().toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException exception) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Review decision must be APPROVE or REJECT.");
+            }
+        }
+    }
 }

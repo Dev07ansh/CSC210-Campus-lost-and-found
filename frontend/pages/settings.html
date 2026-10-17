@@ -10,3 +10,41 @@
     <p class="dsa-note">Google accounts are verified server-side before sign-in.</p>
   </div>
 </div>
+<form class="form-card notification-preferences" id="notification-preferences-form">
+  <div class="settings-card-heading">
+    <div>
+      <span class="eyebrow">Updates</span>
+      <h3>Notification preferences</h3>
+    </div>
+    <span class="settings-save-state" id="notification-preferences-status" aria-live="polite"></span>
+  </div>
+  <p class="dsa-note">Choose where you receive updates about your reports and secure claim handovers.</p>
+  <fieldset class="preference-group">
+    <legend>Delivery channels</legend>
+    <label class="preference-row" for="preference-in-app">
+      <span><strong>In-app notifications</strong><small>Show updates in the notifications inbox and header badge.</small></span>
+      <input id="preference-in-app" name="inAppEnabled" type="checkbox" role="switch">
+    </label>
+    <label class="preference-row" for="preference-email">
+      <span><strong>Email notifications</strong><small>Send selected updates to your signed-in email address.</small></span>
+      <input id="preference-email" name="emailEnabled" type="checkbox" role="switch">
+    </label>
+    <p class="preference-note">Email delivery also requires the server administrator to configure an email sender. Turning it on does not expose your email in item reports.</p>
+  </fieldset>
+  <fieldset class="preference-group">
+    <legend>Notify me about</legend>
+    <label class="preference-row" for="preference-matches">
+      <span><strong>Possible matches</strong><small>New found-item suggestions for your lost reports.</small></span>
+      <input id="preference-matches" name="matchAlerts" type="checkbox" role="switch">
+    </label>
+    <label class="preference-row" for="preference-reports">
+      <span><strong>Report updates</strong><small>Confirmation and changes to reports you submitted.</small></span>
+      <input id="preference-reports" name="reportUpdates" type="checkbox" role="switch">
+    </label>
+    <label class="preference-row" for="preference-claims">
+      <span><strong>Claim and handover updates</strong><small>Claims, staff-review decisions, handover updates, and resolution.</small></span>
+      <input id="preference-claims" name="claimUpdates" type="checkbox" role="switch">
+    </label>
+  </fieldset>
+  <div class="form-actions"><button class="btn primary" type="submit">Save notification preferences</button></div>
+</form>

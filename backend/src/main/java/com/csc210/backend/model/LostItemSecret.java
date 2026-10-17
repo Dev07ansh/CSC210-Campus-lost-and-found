@@ -3,7 +3,7 @@ package com.csc210.backend.model;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 
-/** Private owner-supplied details used only by server-side claim verification. */
+/** Private owner-supplied details visible only to authorized staff during claim review. */
 @Entity
 @Table(name = "lost_item_secret", uniqueConstraints = @UniqueConstraint(columnNames = "lost_item_id"))
 public class LostItemSecret {

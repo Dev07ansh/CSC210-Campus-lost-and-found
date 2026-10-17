@@ -10,7 +10,7 @@ import java.nio.file.Path;
 public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(CorsRegistry registry) {
-        registry.addMapping("/api/**").allowedOriginPatterns("http://localhost:*", "http://127.0.0.1:*").allowedMethods("GET", "POST", "OPTIONS").allowedHeaders("*");
+        registry.addMapping("/api/**").allowedOriginPatterns("http://localhost:*", "http://127.0.0.1:*").allowedMethods("GET", "POST", "PUT", "OPTIONS").allowedHeaders("*");
     }
 
     @Override

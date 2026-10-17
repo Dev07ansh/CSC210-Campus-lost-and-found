@@ -33,18 +33,34 @@ public class ClaimController {
         return claims.mine(currentUsers.requireUser(userEmail));
     }
 
-    @PostMapping("/{id}/verify")
-    public ClaimService.VerificationResponse verify(@PathVariable Long id,
-                                                     @RequestHeader(value = "X-User-Email", required = false) String userEmail,
-                                                     @RequestBody ClaimService.VerificationRequest request) {
-        return claims.verify(id, currentUsers.requireUser(userEmail), request);
+    /**
+     * The claimant does not re-answer the private details after claiming. Only
+     * configured staff can reach the separate review queue, which is also the
+     * sole API that exposes those saved values.
+     */
+    @GetMapping("/review-queue")
+    public List<ClaimService.StaffReviewClaimResponse> reviewQueue(
+            @RequestHeader(value = "X-User-Email", required = false) String userEmail) {
+        return claims.reviewQueue(currentUsers.requireUser(userEmail));
     }
 
-    @PostMapping("/{id}/resolve")
-    public ClaimService.ClaimResponse resolve(@PathVariable Long id,
-                                               @RequestHeader(value = "X-User-Email", required = false) String userEmail,
-                                               @RequestBody ClaimService.ResolveRequest request) {
-        return claims.resolve(id, currentUsers.requireUser(userEmail), request);
+    @PostMapping("/{id}/review")
+    public ClaimService.StaffReviewClaimResponse review(@PathVariable Long id,
+                                                          @RequestHeader(value = "X-User-Email", required = false) String userEmail,
+                                                          @RequestBody ClaimService.ReviewRequest request) {
+        return claims.review(id, currentUsers.requireUser(userEmail), request);
+    }
+
+    @PostMapping("/{id}/complete-handover")
+    public ClaimService.StaffReviewClaimResponse completeHandover(@PathVariable Long id,
+                                                                    @RequestHeader(value = "X-User-Email", required = false) String userEmail) {
+        return claims.completeHandover(id, currentUsers.requireUser(userEmail));
+    }
+
+    @GetMapping("/staff-access")
+    public ClaimService.StaffAccessResponse staffAccess(
+            @RequestHeader(value = "X-User-Email", required = false) String userEmail) {
+        return claims.staffAccess(currentUsers.requireUser(userEmail));
     }
 
     @PostMapping("/{id}/cancel")

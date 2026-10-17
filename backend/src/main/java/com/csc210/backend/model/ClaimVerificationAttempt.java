@@ -3,7 +3,10 @@ package com.csc210.backend.model;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
-/** Stores an auditable result, but deliberately never stores a claimant's raw answers. */
+/**
+ * Legacy audit records from the retired self-service verification flow. New
+ * claims never create these records; staff review metadata lives on Claim.
+ */
 @Entity
 @Table(name = "claim_verification_attempt", uniqueConstraints = @UniqueConstraint(columnNames = {"claim_id", "attempt_number"}))
 public class ClaimVerificationAttempt {

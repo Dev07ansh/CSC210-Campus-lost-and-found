@@ -96,17 +96,29 @@ let apiItems = [],
   googleReady = false,
   debounce;
 
-// Claim feedback and the one-time handover code deliberately live only in
-// memory. They are never written to localStorage or included in a URL.
+// Claim feedback is transient UI state only. Saved private report details are
+// intentionally never copied into browser storage or normal claim views.
 const claimMessages = new Map();
-const handoverCodes = new Map();
 const CLAIM_STATUS_LABELS = {
-  PENDING_VERIFICATION: 'Awaiting verification',
-  VERIFIED: 'Verified — arrange handover',
-  RESOLVED: 'Resolved',
-  REJECTED: 'Rejected',
+  PENDING_STAFF_REVIEW: 'Awaiting staff review',
+  PENDING_VERIFICATION: 'Awaiting staff review',
+  APPROVED_FOR_HANDOVER: 'Approved for handover',
+  VERIFIED: 'Approved for handover',
+  RESOLVED: 'Handover completed',
+  REJECTED: 'Not approved',
   CANCELLED: 'Cancelled',
 };
+const DEFAULT_NOTIFICATION_PREFERENCES = Object.freeze({
+  inAppEnabled: true,
+  emailEnabled: false,
+  matchAlerts: true,
+  reportUpdates: true,
+  claimUpdates: true,
+});
+let notificationUnreadCount = 0;
+let notificationPreferences = null;
+let notificationInboxAvailable = null;
+let staffReviewAccess = null;
 
 // ============================================================
 // HTML partial & component loading
@@ -119,7 +131,10 @@ const CLAIM_STATUS_LABELS = {
 const partialCache = new Map();
 async function loadPartial(path) {
   if (!partialCache.has(path)) {
-    const response = await fetch(path);
+    // Pages are split into individual files. Avoid a browser reusing an older
+    // partial after the local frontend has been reorganized or restarted.
+    const response = await fetch(path, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`Could not load ${path}`);
     partialCache.set(path, await response.text());
   }
   return partialCache.get(path);
@@ -147,6 +162,9 @@ const items = () => (backendAvailable ? apiItems : demoItems);
 const saveUser = (user) => {
   currentUser = user;
   localStorage.setItem('lf_user', JSON.stringify(user));
+  notificationUnreadCount = 0;
+  notificationPreferences = null;
+  staffReviewAccess = null;
 };
 const imageSrc = (imageUrl) =>
   imageUrl && imageUrl.startsWith('/') ? `${API_ORIGIN}${imageUrl}` : imageUrl;
@@ -169,6 +187,9 @@ function logout() {
   window.google?.accounts?.id?.disableAutoSelect();
   localStorage.removeItem('lf_user');
   currentUser = null;
+  notificationUnreadCount = 0;
+  notificationPreferences = null;
+  staffReviewAccess = null;
   navigate('login');
 }
 function dateText(value) {
@@ -252,6 +273,316 @@ function claimDateTime(value) {
 }
 function rememberClaimMessage(id, type, text) {
   claimMessages.set(String(id), { type, text });
+}
+
+// ============================================================
+// Notifications
+// ============================================================
+function notificationPreferenceKey() {
+  return `lf_notification_preferences:${String(currentUser?.email || 'anonymous').trim().toLowerCase()}`;
+}
+function normaliseNotificationPreferences(value = {}) {
+  return {
+    inAppEnabled: value?.inAppEnabled !== false,
+    emailEnabled: value?.emailEnabled === true,
+    matchAlerts: value?.matchAlerts !== false,
+    reportUpdates: value?.reportUpdates !== false,
+    claimUpdates: value?.claimUpdates !== false,
+  };
+}
+function savedNotificationPreferences() {
+  try {
+    return normaliseNotificationPreferences(JSON.parse(localStorage.getItem(notificationPreferenceKey()) || '{}'));
+  } catch (_) {
+    return { ...DEFAULT_NOTIFICATION_PREFERENCES };
+  }
+}
+function rememberNotificationPreferences(preferences) {
+  notificationPreferences = normaliseNotificationPreferences(preferences);
+  try {
+    localStorage.setItem(notificationPreferenceKey(), JSON.stringify(notificationPreferences));
+  } catch (_) {}
+  return notificationPreferences;
+}
+function notificationEntries(value) {
+  if (Array.isArray(value)) return value;
+  if (Array.isArray(value?.notifications)) return value.notifications;
+  return [];
+}
+function notificationDateTime(value) {
+  if (!value) return 'Recently';
+  const date = new Date(value);
+  return Number.isNaN(date.valueOf())
+    ? String(value)
+    : date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+}
+function notificationTypeLabel(type) {
+  const labels = {
+    MATCH: 'Possible match',
+    POSSIBLE_MATCH: 'Possible match',
+    REPORT: 'Report update',
+    REPORT_SUBMITTED: 'Report submitted',
+    CLAIM: 'Claim update',
+    CLAIM_CREATED: 'Claim started',
+    CLAIM_PENDING_STAFF_REVIEW: 'Staff review pending',
+    CLAIM_REVIEWED: 'Staff review complete',
+    CLAIM_APPROVED_FOR_HANDOVER: 'Handover approved',
+    CLAIM_VERIFIED: 'Handover approved',
+    CLAIM_REJECTED: 'Claim rejected',
+    CLAIM_RESOLVED: 'Handover confirmed',
+    CLAIM_HANDOVER_COMPLETED: 'Handover confirmed',
+    CLAIM_CANCELLED: 'Claim cancelled',
+    HANDOVER: 'Handover update',
+    SYSTEM: 'Account update',
+  };
+  return labels[String(type || '').toUpperCase()] || 'Update';
+}
+function notificationRoute(actionUrl) {
+  const route = String(actionUrl || '')
+    .trim()
+    .replace(/^#\/?/, '')
+    .replace(/^\//, '');
+  // Notification routes are supplied by our API. Keep them as local hash routes
+  // only; an unexpected absolute URL must not cause an automatic redirect.
+  return /^[a-z0-9_-]+$/i.test(route) ? route : null;
+}
+function updateNotificationBadges(count = 0) {
+  notificationUnreadCount = Math.max(0, Number(count) || 0);
+  const label = notificationUnreadCount > 99 ? '99+' : String(notificationUnreadCount);
+  ['notification-unread-badge', 'topbar-notification-badge'].forEach((id) => {
+    const badge = document.getElementById(id);
+    if (!badge) return;
+    badge.hidden = notificationUnreadCount === 0;
+    badge.textContent = label;
+    badge.setAttribute('aria-label', `${notificationUnreadCount} unread notification${notificationUnreadCount === 1 ? '' : 's'}`);
+  });
+}
+function latestNotificationKey(notification) {
+  return String(notification?.id ?? notification?.createdAt ?? '');
+}
+function notificationSeenKey() {
+  return `lf_last_notification:${String(currentUser?.email || 'anonymous').trim().toLowerCase()}`;
+}
+function showNotificationToast(notification) {
+  const region = document.getElementById('notification-toast-region');
+  if (!region || !notification) return;
+  const toast = document.createElement('article');
+  toast.className = 'notification-toast';
+  const eyebrow = document.createElement('span');
+  eyebrow.className = 'eyebrow';
+  eyebrow.textContent = notificationTypeLabel(notification.type);
+  const heading = document.createElement('strong');
+  heading.textContent = notification.title || 'New update';
+  const message = document.createElement('p');
+  message.textContent = notification.message || 'Open notifications to view this update.';
+  const actions = document.createElement('div');
+  actions.className = 'notification-toast-actions';
+  const view = document.createElement('button');
+  view.className = 'text-btn';
+  view.type = 'button';
+  view.textContent = notificationRoute(notification.actionUrl) ? 'View update →' : 'Open notifications →';
+  view.addEventListener('click', () => openNotification(notification));
+  const dismiss = document.createElement('button');
+  dismiss.className = 'notification-dismiss';
+  dismiss.type = 'button';
+  dismiss.setAttribute('aria-label', 'Dismiss notification');
+  dismiss.textContent = '×';
+  dismiss.addEventListener('click', () => toast.remove());
+  actions.append(view, dismiss);
+  toast.append(eyebrow, heading, message, actions);
+  region.replaceChildren(toast);
+  window.setTimeout(() => toast.remove(), 8000);
+}
+function announceLatestNotification(notifications) {
+  const latest = notifications[0];
+  if (!latest) return;
+  const key = latestNotificationKey(latest);
+  if (!key) return;
+  try {
+    const storageKey = notificationSeenKey();
+    const previous = sessionStorage.getItem(storageKey);
+    sessionStorage.setItem(storageKey, key);
+    // Do not show a stack of old alerts when the page first opens. A toast is
+    // reserved for an unread update that arrives while this browser session is open.
+    if (previous && previous !== key && !latest.read) showNotificationToast(latest);
+  } catch (_) {}
+}
+async function refreshNotificationBadge({ announce = false } = {}) {
+  if (!currentUser?.email || !backendAvailable) {
+    updateNotificationBadges(0);
+    return [];
+  }
+  try {
+    const notifications = notificationEntries(await api('/notifications'));
+    notificationInboxAvailable = true;
+    updateNotificationBadges(notifications.filter((notification) => !notification.read).length);
+    if (announce) announceLatestNotification(notifications);
+    return notifications;
+  } catch (_) {
+    // A project may briefly run an older backend while the UI has been updated.
+    // Keep the rest of the app usable and avoid showing a false unread count.
+    notificationInboxAvailable = false;
+    updateNotificationBadges(0);
+    return [];
+  }
+}
+async function loadNotificationPreferences() {
+  const localPreferences = savedNotificationPreferences();
+  if (!backendAvailable || !currentUser?.email) {
+    return { preferences: localPreferences, savedOnServer: false };
+  }
+  try {
+    const preferences = rememberNotificationPreferences(await api('/notifications/preferences'));
+    return { preferences, savedOnServer: true };
+  } catch (_) {
+    return { preferences: localPreferences, savedOnServer: false };
+  }
+}
+function setNotificationPreferencesMessage(message, type = '') {
+  const node = document.getElementById('notification-preferences-status');
+  if (!node) return;
+  node.textContent = message;
+  node.className = `settings-save-state ${type}`.trim();
+}
+async function saveNotificationPreferences(event) {
+  event.preventDefault();
+  const preferences = {
+    inAppEnabled: document.getElementById('preference-in-app').checked,
+    emailEnabled: document.getElementById('preference-email').checked,
+    matchAlerts: document.getElementById('preference-matches').checked,
+    reportUpdates: document.getElementById('preference-reports').checked,
+    claimUpdates: document.getElementById('preference-claims').checked,
+  };
+  rememberNotificationPreferences(preferences);
+  const submit = event.currentTarget.querySelector('button[type="submit"]');
+  if (submit) submit.disabled = true;
+  if (!backendAvailable || !currentUser?.email) {
+    setNotificationPreferencesMessage('Saved in this browser until the live notification service is available.', 'warning');
+    if (submit) submit.disabled = false;
+    return;
+  }
+  setNotificationPreferencesMessage('Saving…');
+  try {
+    const saved = rememberNotificationPreferences(
+      await api('/notifications/preferences', { method: 'PUT', body: JSON.stringify(preferences) }),
+    );
+    ['inAppEnabled', 'emailEnabled', 'matchAlerts', 'reportUpdates', 'claimUpdates'].forEach((key) => {
+      const input = document.querySelector(`[name="${key}"]`);
+      if (input) input.checked = saved[key];
+    });
+    setNotificationPreferencesMessage('Saved to your account.', 'success');
+  } catch (_) {
+    setNotificationPreferencesMessage('Could not reach the notification service. Your choices are saved in this browser.', 'warning');
+  } finally {
+    if (submit) submit.disabled = false;
+  }
+}
+async function markNotificationRead(notification) {
+  if (!notification || notification.read || !backendAvailable) return;
+  await api(`/notifications/${encodeURIComponent(notification.id)}/read`, { method: 'POST' });
+  notification.read = true;
+  updateNotificationBadges(Math.max(0, notificationUnreadCount - 1));
+}
+async function openNotification(notification) {
+  try {
+    await markNotificationRead(notification);
+  } catch (_) {}
+  const route = notificationRoute(notification?.actionUrl);
+  if (route) navigate(route);
+  else navigate('notifications');
+}
+function buildNotificationCard(notification) {
+  const card = document.createElement('article');
+  card.className = `notification-card${notification.read ? '' : ' unread'}`;
+  const content = document.createElement('div');
+  content.className = 'notification-card-content';
+  const meta = document.createElement('div');
+  meta.className = 'notification-card-meta';
+  const type = document.createElement('span');
+  type.className = 'notification-type';
+  type.textContent = notificationTypeLabel(notification.type);
+  const time = document.createElement('time');
+  time.textContent = notificationDateTime(notification.createdAt);
+  meta.append(type, time);
+  const heading = document.createElement('h3');
+  heading.textContent = notification.title || 'Update';
+  const message = document.createElement('p');
+  message.textContent = notification.message || 'Open this update for more details.';
+  content.append(meta, heading, message);
+  const actions = document.createElement('div');
+  actions.className = 'notification-card-actions';
+  if (notificationRoute(notification.actionUrl)) {
+    const open = document.createElement('button');
+    open.type = 'button';
+    open.className = 'btn secondary notification-open';
+    open.textContent = 'View update';
+    open.addEventListener('click', () => openNotification(notification));
+    actions.append(open);
+  }
+  if (!notification.read) {
+    const read = document.createElement('button');
+    read.type = 'button';
+    read.className = 'text-btn';
+    read.textContent = 'Mark as read';
+    read.addEventListener('click', async () => {
+      read.disabled = true;
+      try {
+        await markNotificationRead(notification);
+        await render();
+      } catch (error) {
+        read.disabled = false;
+        read.textContent = error.message || 'Could not mark as read';
+      }
+    });
+    actions.append(read);
+  }
+  card.append(content, actions);
+  return card;
+}
+async function renderNotifications(container) {
+  container.innerHTML = await loadPartial('pages/notifications.html');
+  const target = document.getElementById('notification-list');
+  const note = document.getElementById('notification-inbox-note');
+  const markAll = document.getElementById('mark-all-notifications');
+  const statusNode = document.getElementById('notifications-status');
+  if (!backendAvailable) {
+    note.textContent = 'Start the backend to receive and manage account updates.';
+    statusNode.outerHTML = status();
+    target.innerHTML = empty('Notifications need the live API', 'Your inbox will appear here once the backend is running.');
+    return;
+  }
+  try {
+    const notifications = notificationEntries(await api('/notifications'));
+    notificationInboxAvailable = true;
+    const unread = notifications.filter((notification) => !notification.read).length;
+    updateNotificationBadges(unread);
+    statusNode.outerHTML = status();
+    note.textContent = unread
+      ? `${unread} unread update${unread === 1 ? '' : 's'}.`
+      : 'You are all caught up.';
+    markAll.disabled = unread === 0;
+    markAll.addEventListener('click', async () => {
+      markAll.disabled = true;
+      try {
+        await api('/notifications/read-all', { method: 'POST' });
+        updateNotificationBadges(0);
+        await render();
+      } catch (error) {
+        markAll.disabled = false;
+        note.textContent = error.message || 'Could not mark notifications as read.';
+      }
+    });
+    if (!notifications.length) {
+      target.innerHTML = empty('No notifications yet', 'Updates about reports, matches, claims, and handovers will appear here.');
+      return;
+    }
+    target.replaceChildren(...notifications.map(buildNotificationCard));
+  } catch (error) {
+    notificationInboxAvailable = false;
+    updateNotificationBadges(0);
+    note.textContent = 'The notification service is unavailable on this backend.';
+    target.innerHTML = empty('Notifications unavailable', error.message || 'Restart the backend after adding the notification API.');
+  }
 }
 
 // ============================================================
@@ -464,8 +795,13 @@ async function buildClaimCard(claim) {
   statusNode.classList.add(claimStatusClass(claim.status));
   node.querySelector('.claim-card-lost').textContent = claimItemName(claim.lostItem);
   node.querySelector('.claim-card-found').textContent = claimItemName(claim.foundItem);
+  const role = String(claim.role || '').toUpperCase();
   node.querySelector('.claim-card-role').textContent =
-    String(claim.role || '').toUpperCase() === 'FINDER' ? 'You reported the found item' : 'You reported the lost item';
+    role === 'FINDER'
+      ? 'You reported the found item'
+      : role === 'STAFF'
+        ? 'Staff review access'
+        : 'You reported the lost item';
   node.querySelector('.claim-card-created').textContent = `Created ${claimDateTime(claim.createdAt)}`;
   const score = Number(claim.matchScore);
   node.querySelector('.claim-card-score').textContent = Number.isFinite(score)
@@ -478,7 +814,7 @@ async function renderClaims(container) {
   container.innerHTML = await loadPartial('pages/claims.html');
   const target = document.getElementById('claims-list');
   if (!backendAvailable) {
-    target.innerHTML = empty('Claims need the live API', 'Start the backend to create, verify, or resolve a claim.');
+    target.innerHTML = empty('Claims need the live API', 'Start the backend to create a claim and track staff review.');
     return;
   }
   try {
@@ -497,6 +833,23 @@ async function renderSettings(container) {
   container.innerHTML = await loadPartial('pages/settings.html');
   document.getElementById('settings-name').value = currentUser?.name || 'Student';
   document.getElementById('settings-email').value = currentUser?.email || 'student@example.com';
+  const { preferences, savedOnServer } = await loadNotificationPreferences();
+  document.getElementById('preference-in-app').checked = preferences.inAppEnabled;
+  document.getElementById('preference-email').checked = preferences.emailEnabled;
+  document.getElementById('preference-matches').checked = preferences.matchAlerts;
+  document.getElementById('preference-reports').checked = preferences.reportUpdates;
+  document.getElementById('preference-claims').checked = preferences.claimUpdates;
+  setNotificationPreferencesMessage(
+    savedOnServer
+      ? 'Loaded from your account.'
+      : backendAvailable
+        ? 'Notification service unavailable — showing choices saved in this browser.'
+        : 'Start the backend to save choices to your account.',
+    savedOnServer ? '' : 'warning',
+  );
+  document
+    .getElementById('notification-preferences-form')
+    .addEventListener('submit', saveNotificationPreferences);
 }
 async function renderDetail(container, key) {
   const item = items().find((i) => String(i.id) === decodeURIComponent(key));
@@ -577,7 +930,7 @@ async function buildMatchRow(m, lostItemId, verificationAvailable) {
     // an unusable claim for a legacy report that has no complete secret record.
     claimButton.disabled = true;
     claimButton.textContent = 'Private details required';
-    claimButton.title = 'This lost report needs all three private verification details before it can be claimed.';
+    claimButton.title = 'This lost report needs all three saved private details before staff can review a claim.';
   } else if (m.canCreateClaim === false) {
     // This flag is calculated by the server. Keep the control visible so an
     // ineligible viewer understands why there is no action to take.
@@ -596,8 +949,8 @@ async function loadMatches(id, verificationAvailable = true) {
   try {
     const matches = (await api(`/lost-items/${id}/matches?limit=5`)).filter((m) => m.score > 0);
     document.getElementById('match-note').textContent = verificationAvailable
-      ? 'Similarity ranks color, location, and keywords. It is a suggestion, not proof of ownership.'
-      : 'This older lost report has no complete private verification details, so it cannot be claimed. Similarity is still only a suggestion.';
+      ? 'Similarity ranks color, location, and keywords. It is a suggestion, not proof of ownership. Staff can review your saved private details only after you create a claim.'
+      : 'This older lost report has no complete private details, so staff cannot review it and it cannot be claimed. Similarity is still only a suggestion.';
     if (matches.length) {
       target.replaceChildren(...(await Promise.all(matches.map((match) => buildMatchRow(match, id, verificationAvailable)))));
     } else {
@@ -615,82 +968,10 @@ function renderClaimFeedback(id) {
   node.textContent = feedback.text;
   node.className = `claim-result ${feedback.type}`;
 }
-async function copyHandoverCode(id) {
-  const code = handoverCodes.get(String(id));
-  if (!code) return;
-  try {
-    await navigator.clipboard.writeText(code);
-    rememberClaimMessage(id, 'success', 'One-time handover code copied. Share it only in person.');
-  } catch (_) {
-    rememberClaimMessage(id, 'error', 'Copy is unavailable. Select the one-time code and copy it manually.');
-  }
-  renderClaimFeedback(id);
-}
-async function verifyClaim(event, claimId) {
-  event.preventDefault();
-  const form = new FormData(event.target);
-  const submit = event.target.querySelector('button[type="submit"]');
-  if (submit) submit.disabled = true;
-  try {
-    const verification = await api(`/claims/${claimId}/verify`, {
-      method: 'POST',
-      body: JSON.stringify({
-        interiorColorOrLining: form.get('interiorColorOrLining'),
-        uniqueMarks: form.get('uniqueMarks'),
-        contents: form.get('contents'),
-      }),
-    });
-    if (verification.handoverCode) handoverCodes.set(String(claimId), verification.handoverCode);
-    if (verification.passed) {
-      rememberClaimMessage(
-        claimId,
-        'success',
-        'Ownership verified. Arrange a handover; the finder must confirm the one-time code.',
-      );
-    } else if (verification.rejected) {
-      rememberClaimMessage(claimId, 'error', 'Verification failed and this claim was rejected.');
-    } else {
-      const remaining = verification.attemptsRemaining ?? verification.claim?.verificationAttemptsRemaining;
-      rememberClaimMessage(
-        claimId,
-        'error',
-        Number.isFinite(Number(remaining))
-          ? `Verification did not pass. ${remaining} attempt${Number(remaining) === 1 ? '' : 's'} remaining.`
-          : 'Verification did not pass. Please try again.',
-      );
-    }
-    await render();
-  } catch (error) {
-    rememberClaimMessage(claimId, 'error', error.message || 'Verification could not be completed.');
-    if (submit) submit.disabled = false;
-    renderClaimFeedback(claimId);
-  }
-}
-async function resolveClaim(event, claimId) {
-  event.preventDefault();
-  const form = new FormData(event.target);
-  const submit = event.target.querySelector('button[type="submit"]');
-  if (submit) submit.disabled = true;
-  try {
-    await api(`/claims/${claimId}/resolve`, {
-      method: 'POST',
-      body: JSON.stringify({ handoverCode: form.get('handoverCode') }),
-    });
-    handoverCodes.delete(String(claimId));
-    rememberClaimMessage(claimId, 'success', 'Handover confirmed. Both reports are now resolved.');
-    await loadItems();
-    await render();
-  } catch (error) {
-    rememberClaimMessage(claimId, 'error', error.message || 'The handover could not be confirmed.');
-    if (submit) submit.disabled = false;
-    renderClaimFeedback(claimId);
-  }
-}
 async function cancelClaim(claimId, button) {
   button.disabled = true;
   try {
     await api(`/claims/${claimId}/cancel`, { method: 'POST' });
-    handoverCodes.delete(String(claimId));
     rememberClaimMessage(claimId, 'success', 'This claim was cancelled.');
     await render();
   } catch (error) {
@@ -699,9 +980,32 @@ async function cancelClaim(claimId, button) {
     renderClaimFeedback(claimId);
   }
 }
+function claimReviewMessage(statusValue, role) {
+  const finder = role === 'FINDER';
+  switch (statusValue) {
+    case 'PENDING_STAFF_REVIEW':
+    case 'PENDING_VERIFICATION':
+      return finder
+        ? 'A staff member is reviewing the claimant\'s saved private details. They are not shared with you.'
+        : 'Your claim is awaiting staff review.';
+    case 'APPROVED_FOR_HANDOVER':
+    case 'VERIFIED':
+      return 'Staff approved this claim for handover. Follow the campus handover process; staff will record completion.';
+    case 'RESOLVED':
+      return 'Staff recorded the completed handover. Both reports are resolved.';
+    case 'REJECTED':
+      return finder
+        ? 'Staff could not approve this claim. The claimant\'s private details remain hidden from you.'
+        : 'Staff could not approve this claim. Your saved private details remain private.';
+    case 'CANCELLED':
+      return 'This claim was cancelled before the handover was completed.';
+    default:
+      return 'Claim status is being updated.';
+  }
+}
 async function renderClaimDetail(container, key) {
   if (!backendAvailable) {
-    container.innerHTML = empty('Claims need the live API', 'Start the backend to view or act on a claim.');
+    container.innerHTML = empty('Claims need the live API', 'Start the backend to view claim status.');
     return;
   }
   container.innerHTML = await loadPartial('pages/claim-detail.html');
@@ -726,7 +1030,11 @@ async function renderClaimDetail(container, key) {
   statusNode.classList.add(claimStatusClass(statusValue));
   document.getElementById('claim-detail-title').textContent = `${claimItemName(claim.lostItem)} → ${claimItemName(claim.foundItem)}`;
   document.getElementById('claim-detail-role').textContent =
-    role === 'FINDER' ? 'You reported the found item.' : 'You reported the lost item.';
+    role === 'FINDER'
+      ? 'You reported the found item.'
+      : role === 'STAFF'
+        ? 'Use the Staff Review workspace for private review actions.'
+        : 'You reported the lost item.';
   document.getElementById('claim-lost-item').textContent = claimItemName(claim.lostItem);
   document.getElementById('claim-found-item').textContent = claimItemName(claim.foundItem);
   const score = Number(claim.matchScore);
@@ -734,66 +1042,289 @@ async function renderClaimDetail(container, key) {
     ? `Similarity context: ${Math.round(score * 100)}% (not proof of ownership)`
     : 'Similarity context is unavailable';
   document.getElementById('claim-created-at').textContent = claimDateTime(claim.createdAt);
-  document.getElementById('claim-verified-at').textContent = claim.verifiedAt ? claimDateTime(claim.verifiedAt) : 'Not yet verified';
-  document.getElementById('claim-resolved-at').textContent = claim.resolvedAt ? claimDateTime(claim.resolvedAt) : 'Not yet resolved';
+  document.getElementById('claim-reviewed-at').textContent = claim.reviewedAt
+    ? claimDateTime(claim.reviewedAt)
+    : 'Not yet reviewed';
+  document.getElementById('claim-resolved-at').textContent = claim.resolvedAt
+    ? claimDateTime(claim.resolvedAt)
+    : 'Not yet completed';
 
   const stateNote = document.getElementById('claim-state-note');
-  const verificationSection = document.getElementById('claim-verification-section');
-  const handoverSection = document.getElementById('claim-handover-section');
-  const cancelSection = document.getElementById('claim-cancel-section');
-  if (claim.canVerify) {
-    verificationSection.hidden = false;
-    const remaining = claim.verificationAttemptsRemaining;
-    document.getElementById('claim-attempt-note').textContent = Number.isFinite(Number(remaining))
-      ? `${remaining} verification attempt${Number(remaining) === 1 ? '' : 's'} remaining.`
-      : 'Answer all three private questions.';
-    document
-      .getElementById('claim-verification-form')
-      .addEventListener('submit', (event) => verifyClaim(event, claim.id));
-  } else if (statusValue === 'PENDING_VERIFICATION') {
-    stateNote.textContent =
-      role === 'FINDER'
-        ? 'The lost-item owner must complete private verification before a handover can be arranged.'
-        : 'This claim is awaiting a server-authorized verification step.';
-  }
-
-  if (statusValue === 'VERIFIED') {
-    handoverSection.hidden = false;
-    const code = handoverCodes.get(String(claim.id));
-    const codeCard = document.getElementById('claim-code-card');
-    if (code) {
-      codeCard.hidden = false;
-      document.getElementById('claim-handover-code').textContent = code;
-      document.getElementById('copy-handover-code').addEventListener('click', () => copyHandoverCode(claim.id));
-    } else if (role === 'CLAIMANT') {
-      document.getElementById('claim-code-note').textContent =
-        'The one-time code is shown immediately after verification and is not saved in local storage or a URL.';
-    }
-    if (claim.canResolve) {
-      document.getElementById('claim-resolve-form').hidden = false;
-      document.getElementById('claim-resolve-form').addEventListener('submit', (event) => resolveClaim(event, claim.id));
-      document.getElementById('claim-handover-instruction').textContent =
-        'At the handover, enter the one-time code supplied by the verified owner.';
-    } else if (role === 'FINDER') {
-      document.getElementById('claim-handover-instruction').textContent =
-        'Only the server-authorized finder can confirm this handover.';
-    } else {
-      document.getElementById('claim-handover-instruction').textContent =
-        'Meet the finder and share the one-time code only in person.';
-    }
+  const reviewHeading = document.getElementById('claim-review-heading');
+  const reviewInstruction = document.getElementById('claim-review-instruction');
+  stateNote.textContent = claimReviewMessage(statusValue, role);
+  reviewInstruction.textContent = stateNote.textContent;
+  if (statusValue === 'APPROVED_FOR_HANDOVER' || statusValue === 'VERIFIED') {
+    reviewHeading.textContent = 'Handover approved';
   } else if (statusValue === 'RESOLVED') {
-    stateNote.textContent = 'Handover confirmed. Both reports have been resolved.';
+    reviewHeading.textContent = 'Handover completed';
   } else if (statusValue === 'REJECTED') {
-    stateNote.textContent = 'This claim was rejected after verification did not pass.';
+    reviewHeading.textContent = 'Staff review complete';
   } else if (statusValue === 'CANCELLED') {
-    stateNote.textContent = 'This claim was cancelled before handover.';
+    reviewHeading.textContent = 'Claim cancelled';
   }
 
   if (claim.canCancel) {
+    const cancelSection = document.getElementById('claim-cancel-section');
     cancelSection.hidden = false;
     document.getElementById('claim-cancel-button').addEventListener('click', (event) => cancelClaim(claim.id, event.currentTarget));
   }
   renderClaimFeedback(claim.id);
+}
+
+// ============================================================
+// Staff-only review queue
+// ============================================================
+function setStaffReviewNavigation(allowed) {
+  const button = document.getElementById('staff-review-nav');
+  if (button) button.hidden = !allowed;
+}
+async function refreshStaffReviewAccess({ force = false } = {}) {
+  if (!currentUser?.email || !backendAvailable) {
+    setStaffReviewNavigation(false);
+    return false;
+  }
+  if (staffReviewAccess === null || force) {
+    try {
+      const access = await api('/claims/staff-access');
+      staffReviewAccess = access?.staff === true;
+    } catch (_) {
+      // Treat an unavailable or unauthorised endpoint as no staff access. The
+      // server remains the authority for the queue and every staff action.
+      staffReviewAccess = false;
+    }
+  }
+  setStaffReviewNavigation(staffReviewAccess);
+  return staffReviewAccess;
+}
+function staffQueueEntries(value) {
+  if (Array.isArray(value)) return value;
+  if (Array.isArray(value?.claims)) return value.claims;
+  if (Array.isArray(value?.queue)) return value.queue;
+  return [];
+}
+function personText(person, fallback) {
+  const name = String(person?.name || fallback);
+  const email = String(person?.email || '').trim();
+  return email ? `${name} (${email})` : name;
+}
+function addStaffReviewFact(container, label, value) {
+  const fact = document.createElement('div');
+  const heading = document.createElement('dt');
+  const detail = document.createElement('dd');
+  heading.textContent = label;
+  detail.textContent = value || 'Not provided';
+  fact.append(heading, detail);
+  container.append(fact);
+}
+function buildStaffReportPanel(label, item) {
+  const panel = document.createElement('section');
+  panel.className = 'staff-report-panel';
+  const heading = document.createElement('h4');
+  heading.textContent = label;
+  const title = document.createElement('strong');
+  title.textContent = claimItemName(item);
+  const summary = document.createElement('p');
+  summary.textContent = [item?.category, item?.color, item?.location].filter(Boolean).join(' · ') || 'Report details unavailable';
+  panel.append(heading, title, summary);
+  const reportDate = item?.dateTime || item?.date;
+  if (reportDate) {
+    const date = document.createElement('p');
+    date.textContent = `Reported item date: ${dateText(reportDate)}`;
+    panel.append(date);
+  }
+  if (item?.description) {
+    const description = document.createElement('p');
+    description.className = 'staff-report-description';
+    description.textContent = item.description;
+    panel.append(description);
+  }
+  if (item?.imageUrl) {
+    const image = document.createElement('img');
+    image.className = 'staff-report-image';
+    image.src = imageSrc(item.imageUrl);
+    image.alt = `${label}: ${claimItemName(item)}`;
+    panel.append(image);
+  }
+  return panel;
+}
+function staffFeedback(container, message, type = 'error') {
+  let node = container.querySelector('.staff-review-feedback');
+  if (!node) {
+    node = document.createElement('p');
+    node.className = 'staff-review-feedback';
+    container.append(node);
+  }
+  node.textContent = message;
+  node.className = `staff-review-feedback ${type}`;
+}
+async function submitStaffReview(claimId, decision, note, container) {
+  const controls = container.querySelectorAll('button, textarea');
+  controls.forEach((control) => { control.disabled = true; });
+  try {
+    await api(`/claims/${encodeURIComponent(claimId)}/review`, {
+      method: 'POST',
+      body: JSON.stringify({ decision, staffNote: note.trim() || null }),
+    });
+    await loadItems();
+    await render();
+  } catch (error) {
+    controls.forEach((control) => { control.disabled = false; });
+    staffFeedback(container, error.message || 'The staff review could not be saved.');
+  }
+}
+async function completeStaffHandover(claimId, container) {
+  if (!window.confirm('Mark this handover as complete? This resolves both reports.')) return;
+  const controls = container.querySelectorAll('button');
+  controls.forEach((control) => { control.disabled = true; });
+  try {
+    await api(`/claims/${encodeURIComponent(claimId)}/complete-handover`, { method: 'POST' });
+    await loadItems();
+    await render();
+  } catch (error) {
+    controls.forEach((control) => { control.disabled = false; });
+    staffFeedback(container, error.message || 'The handover could not be completed.');
+  }
+}
+function buildStaffReviewCard(entry) {
+  const claim = entry?.claim || entry || {};
+  const card = document.createElement('article');
+  card.className = 'staff-review-card';
+  const header = document.createElement('div');
+  header.className = 'staff-review-card-header';
+  const heading = document.createElement('div');
+  const statusNode = document.createElement('span');
+  statusNode.className = `claim-status ${claimStatusClass(claim.status)}`;
+  statusNode.textContent = claimStatusLabel(claim.status);
+  const title = document.createElement('h3');
+  title.textContent = `${claimItemName(claim.lostItem)} → ${claimItemName(claim.foundItem)}`;
+  const created = document.createElement('p');
+  created.className = 'muted';
+  created.textContent = `Claim created ${claimDateTime(claim.createdAt)}`;
+  heading.append(statusNode, title, created);
+  const score = document.createElement('p');
+  score.className = 'staff-match-context';
+  const matchScore = Number(claim.matchScore);
+  score.textContent = Number.isFinite(matchScore)
+    ? `Similarity context: ${Math.round(matchScore * 100)}% — not proof of ownership`
+    : 'Similarity is only context, not proof of ownership';
+  header.append(heading, score);
+  card.append(header);
+
+  const people = document.createElement('dl');
+  people.className = 'staff-people';
+  addStaffReviewFact(people, 'Claimant', personText(entry.claimant || claim.claimant, 'Lost-report owner'));
+  addStaffReviewFact(people, 'Finder', personText(entry.finder || claim.finder, 'Found-report reporter'));
+  card.append(people);
+
+  const reports = document.createElement('div');
+  reports.className = 'staff-report-grid';
+  reports.append(buildStaffReportPanel('Lost report', claim.lostItem), buildStaffReportPanel('Found report', claim.foundItem));
+  card.append(reports);
+
+  const privateDetails = entry.privateDetails || claim.privateDetails;
+  const privateSection = document.createElement('section');
+  privateSection.className = 'staff-private-details';
+  const privateHeading = document.createElement('h4');
+  privateHeading.textContent = 'Private lost-report details';
+  const privateNote = document.createElement('p');
+  privateNote.textContent = 'Staff-only: compare these saved details with the item. Do not disclose them to the finder or claimant.';
+  privateSection.append(privateHeading, privateNote);
+  const privateList = document.createElement('dl');
+  privateList.className = 'staff-private-list';
+  addStaffReviewFact(privateList, 'Interior color or lining', privateDetails?.interiorColorOrLining);
+  addStaffReviewFact(privateList, 'Unique marks', privateDetails?.uniqueMarks);
+  addStaffReviewFact(privateList, 'Contents', privateDetails?.contents);
+  privateSection.append(privateList);
+  card.append(privateSection);
+
+  if (claim.staffNote) {
+    const previousNote = document.createElement('p');
+    previousNote.className = 'staff-note';
+    previousNote.textContent = `Previous staff note: ${claim.staffNote}`;
+    card.append(previousNote);
+  }
+
+  if (claim.canReview) {
+    const actions = document.createElement('section');
+    actions.className = 'staff-review-actions';
+    const actionHeading = document.createElement('h4');
+    actionHeading.textContent = 'Record staff decision';
+    const noteLabel = document.createElement('label');
+    noteLabel.textContent = 'Staff note (optional; not shown to claim participants)';
+    const note = document.createElement('textarea');
+    note.rows = 3;
+    note.maxLength = 500;
+    note.autocomplete = 'off';
+    note.placeholder = 'Record only the minimum necessary review note.';
+    noteLabel.append(note);
+    const buttons = document.createElement('div');
+    buttons.className = 'staff-review-buttons';
+    const approve = document.createElement('button');
+    approve.type = 'button';
+    approve.className = 'btn primary';
+    approve.textContent = 'Approve for handover';
+    approve.addEventListener('click', () => submitStaffReview(claim.id, 'APPROVE', note.value, actions));
+    const reject = document.createElement('button');
+    reject.type = 'button';
+    reject.className = 'btn secondary staff-reject-button';
+    reject.textContent = 'Reject claim';
+    reject.addEventListener('click', () => submitStaffReview(claim.id, 'REJECT', note.value, actions));
+    buttons.append(approve, reject);
+    actions.append(actionHeading, noteLabel, buttons);
+    card.append(actions);
+  } else if (claim.canCompleteHandover) {
+    const complete = document.createElement('section');
+    complete.className = 'staff-review-actions';
+    const heading = document.createElement('h4');
+    heading.textContent = 'Complete the handover';
+    const note = document.createElement('p');
+    note.textContent = 'Use this only after the item has been handed over in person according to the campus process.';
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'btn primary';
+    button.textContent = 'Mark handover complete';
+    button.addEventListener('click', () => completeStaffHandover(claim.id, complete));
+    complete.append(heading, note, button);
+    card.append(complete);
+  }
+  return card;
+}
+async function renderStaffReview(container) {
+  container.innerHTML = await loadPartial('pages/staff-review.html');
+  const target = document.getElementById('staff-review-list');
+  const note = document.getElementById('staff-review-note');
+  const statusNode = document.getElementById('staff-review-status');
+  if (!backendAvailable) {
+    statusNode.outerHTML = status();
+    note.textContent = 'Start the live backend before accessing staff review.';
+    target.innerHTML = empty('Staff review needs the live API', 'The review queue is unavailable while the backend is offline.');
+    return;
+  }
+  const allowed = await refreshStaffReviewAccess({ force: true });
+  if (!allowed) {
+    statusNode.outerHTML = status();
+    note.textContent = 'This restricted workspace is available only to authorised staff accounts.';
+    target.innerHTML = empty('Staff access required', 'Sign in with an authorised staff account to review claims.');
+    return;
+  }
+  try {
+    const queue = staffQueueEntries(await api('/claims/review-queue'));
+    note.textContent = queue.length
+      ? `${queue.length} claim${queue.length === 1 ? '' : 's'} awaiting a staff action.`
+      : 'There are no claims awaiting a staff action.';
+    statusNode.outerHTML = status();
+    if (!queue.length) {
+      target.innerHTML = empty('Review queue is clear', 'New claims will appear here for private staff review.');
+      return;
+    }
+    target.replaceChildren(...queue.map(buildStaffReviewCard));
+  } catch (error) {
+    staffReviewAccess = false;
+    setStaffReviewNavigation(false);
+    note.textContent = 'The staff review service is unavailable.';
+    target.innerHTML = empty('Staff review unavailable', error.message || 'The review queue could not be loaded.');
+  }
 }
 
 // ============================================================
@@ -879,13 +1410,18 @@ async function renderNow() {
     'report-found': 'Report Found',
     reports: 'My Reports',
     claims: 'My Claims',
+    'staff-review': 'Staff Review',
+    notifications: 'Notifications',
     settings: 'Settings',
+    help: 'Help & safe handover guide',
   };
   const isItemDetail = activePage.startsWith('item-');
   const isClaimDetail = activePage.startsWith('claim-');
   wireShell(
     isItemDetail ? 'Item Details' : isClaimDetail ? 'Claim Details' : titles[activePage] || 'Dashboard',
   );
+  refreshNotificationBadge({ announce: true });
+  if (activePage !== 'staff-review') void refreshStaffReviewAccess();
 
   const content = document.getElementById('page-content');
   if (activePage === 'dashboard') await renderDashboard(content);
@@ -894,7 +1430,10 @@ async function renderNow() {
   else if (activePage === 'report-found') await renderReportForm(content, 'FOUND');
   else if (activePage === 'reports') await renderReports(content);
   else if (activePage === 'claims') await renderClaims(content);
+  else if (activePage === 'staff-review') await renderStaffReview(content);
+  else if (activePage === 'notifications') await renderNotifications(content);
   else if (activePage === 'settings') await renderSettings(content);
+  else if (activePage === 'help') content.innerHTML = await loadPartial('pages/help.html');
   else if (isItemDetail) await renderDetail(content, activePage.slice(5));
   else if (isClaimDetail) await renderClaimDetail(content, activePage.slice(6));
   else await renderDashboard(content);
@@ -908,3 +1447,8 @@ render();
 loadItems().then(() => {
   if (currentUser) render();
 });
+window.setInterval(() => {
+  if (currentUser && backendAvailable && document.visibilityState !== 'hidden') {
+    refreshNotificationBadge({ announce: true });
+  }
+}, 45000);

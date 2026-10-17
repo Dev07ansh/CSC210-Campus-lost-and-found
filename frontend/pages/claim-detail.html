@@ -14,42 +14,20 @@
     <div><dt>Found report</dt><dd id="claim-found-item"></dd></div>
     <div><dt>Match context</dt><dd id="claim-match-score"></dd></div>
     <div><dt>Created</dt><dd id="claim-created-at"></dd></div>
-    <div><dt>Verified</dt><dd id="claim-verified-at"></dd></div>
-    <div><dt>Resolved</dt><dd id="claim-resolved-at"></dd></div>
+    <div><dt>Staff review</dt><dd id="claim-reviewed-at"></dd></div>
+    <div><dt>Handover completed</dt><dd id="claim-resolved-at"></dd></div>
   </dl>
 
-  <section class="claim-workflow-section" id="claim-verification-section" hidden>
+  <section class="claim-workflow-section" id="claim-review-section">
     <span class="eyebrow">Step 1</span>
-    <h3>Verify ownership</h3>
-    <p class="dsa-note">Answer all three private prompts. These answers are checked on the server and are not shown to the finder.</p>
-    <p class="verification-threshold" id="claim-attempt-note"></p>
-    <form id="claim-verification-form" class="claim-form">
-      <label>What is the interior color or lining?<input required name="interiorColorOrLining" autocomplete="off"></label>
-      <label>What unique marks does it have?<input required name="uniqueMarks" autocomplete="off"></label>
-      <label>What does it contain?<input required name="contents" autocomplete="off"></label>
-      <button type="submit" class="btn primary">Verify ownership</button>
-    </form>
-  </section>
-
-  <section class="claim-workflow-section" id="claim-handover-section" hidden>
-    <span class="eyebrow">Step 2</span>
-    <h3>Arrange handover</h3>
-    <p class="dsa-note" id="claim-handover-instruction"></p>
-    <div class="handover-code" id="claim-code-card" hidden>
-      <span>One-time handover code</span>
-      <code id="claim-handover-code"></code>
-      <button type="button" class="text-btn" id="copy-handover-code">Copy code</button>
-    </div>
-    <p class="dsa-note" id="claim-code-note"></p>
-    <form id="claim-resolve-form" class="claim-form handover-form" hidden>
-      <label>One-time handover code<input required name="handoverCode" autocomplete="one-time-code"></label>
-      <button type="submit" class="btn primary">Confirm handover</button>
-    </form>
+    <h3 id="claim-review-heading">Staff review</h3>
+    <p class="dsa-note" id="claim-review-instruction"></p>
+    <p class="claim-privacy-note">Your saved identifying details are not shown here and are never shared with the finder. Only authorised staff can review them.</p>
   </section>
 
   <section class="claim-workflow-section claim-cancel-section" id="claim-cancel-section" hidden>
     <h3>Cancel this claim</h3>
-    <p class="dsa-note">Cancelling ends this claim. The reports remain active unless a handover has already been resolved.</p>
+    <p class="dsa-note">Cancelling ends this claim. The reports remain active unless staff has already completed the handover.</p>
     <button type="button" class="btn secondary" id="claim-cancel-button">Cancel claim</button>
   </section>
 
