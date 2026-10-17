@@ -3,6 +3,7 @@ package com.csc210.backend.service;
 import com.csc210.backend.dsa.SimilarityScorer;
 import com.csc210.backend.model.Claim;
 import com.csc210.backend.model.ClaimStatus;
+import com.csc210.backend.model.CollectionDesk;
 import com.csc210.backend.model.FoundItem;
 import com.csc210.backend.model.LostItem;
 import com.csc210.backend.model.LostItemSecret;
@@ -76,6 +77,9 @@ public class ClaimService {
         }
         if (!isActive(lost.getStatus()) || !isActive(found.getStatus())) {
             throw conflict("Both reports must still be active before a claim can begin.");
+        }
+        if (!CollectionDesk.isSupported(found.getCollectionDesk())) {
+            throw conflict("This found-item report has no valid collection desk yet. Ask staff to assign University Centre Reception or Gate 12 before claiming it.");
         }
         LostItemSecret secret = secretFor(lost);
         if (secret == null || !secret.isComplete()) {
@@ -224,6 +228,9 @@ public class ClaimService {
         boolean isStaff = staffAccess.isStaff(currentUser);
         boolean independentStaff = isStaff && !claimant && !finder;
         String role = claimant ? "CLAIMANT" : finder ? "FINDER" : isStaff ? "STAFF" : "";
+        String collectionDesk = claimant && canSeeCollectionDesk(claim.getStatus())
+                ? CollectionDesk.normalize(claim.getFoundItem().getCollectionDesk())
+                : null;
         return new ClaimResponse(
                 claim.getId(),
                 report(claim.getLostItem()),
@@ -237,7 +244,8 @@ public class ClaimService {
                 (claimant || finder) && ACTIVE_CLAIM_STATES.contains(claim.getStatus()),
                 independentStaff && isPendingStaffReview(claim.getStatus()),
                 independentStaff && isApprovedForHandover(claim.getStatus()),
-                isStaff
+                isStaff,
+                collectionDesk
         );
     }
 
@@ -258,7 +266,8 @@ public class ClaimService {
                 claim.getStaffReviewNote(),
                 privateDetails(secret),
                 isPendingStaffReview(claim.getStatus()),
-                isApprovedForHandover(claim.getStatus())
+                isApprovedForHandover(claim.getStatus()),
+                CollectionDesk.normalize(claim.getFoundItem().getCollectionDesk())
         );
     }
 
@@ -309,6 +318,11 @@ public class ClaimService {
         return status == ClaimStatus.APPROVED_FOR_HANDOVER || status == ClaimStatus.VERIFIED;
     }
 
+    /** Approved claimants retain the desk in their resolved claim history. */
+    private boolean canSeeCollectionDesk(ClaimStatus status) {
+        return isApprovedForHandover(status) || status == ClaimStatus.RESOLVED;
+    }
+
     private ClaimStatus normalizeLegacyStatus(ClaimStatus status) {
         if (status == ClaimStatus.PENDING_VERIFICATION) return ClaimStatus.PENDING_STAFF_REVIEW;
         if (status == ClaimStatus.VERIFIED) return ClaimStatus.APPROVED_FOR_HANDOVER;
@@ -350,12 +364,13 @@ public class ClaimService {
     /** General claim response: deliberately contains no private owner details or staff notes. */
     public record ClaimResponse(Long id, ReportSummary lostItem, ReportSummary foundItem, ClaimStatus status,
                                 double matchScore, LocalDateTime createdAt, LocalDateTime reviewedAt, LocalDateTime resolvedAt,
-                                String role, boolean canCancel, boolean canReview, boolean canCompleteHandover, boolean isStaff) {}
+                                String role, boolean canCancel, boolean canReview, boolean canCompleteHandover, boolean isStaff,
+                                String collectionDesk) {}
     public record StaffReviewClaimResponse(Long id, StaffReportSummary lostItem, StaffReportSummary foundItem,
                                            ParticipantSummary claimant, ParticipantSummary finder, ClaimStatus status,
                                            double matchScore, LocalDateTime createdAt, LocalDateTime reviewedAt,
                                            LocalDateTime completedAt, String staffNote, PrivateDetails privateDetails,
-                                           boolean canReview, boolean canCompleteHandover) {}
+                                           boolean canReview, boolean canCompleteHandover, String collectionDesk) {}
     public record StaffAccessResponse(boolean staff) {}
 
     private enum ReviewDecision {

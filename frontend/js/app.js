@@ -637,7 +637,8 @@ async function renderDashboard(container) {
   grid.innerHTML = recent.length ? '' : empty('No reports yet', 'Be the first to add an item.');
   if (recent.length) grid.replaceChildren(...(await Promise.all(recent.map(buildCard))));
 }
-function searchHome() {
+function searchHome(event) {
+  event?.preventDefault();
   localStorage.setItem('lf_query', document.getElementById('home-search').value);
   navigate('browse');
 }
@@ -734,6 +735,11 @@ async function renderReportForm(container, type) {
   populateSelect('location', LOCATIONS);
   document.querySelector('#report-form [name="image"]').required = !lost;
   document.getElementById('photo-flag').textContent = lost ? '(optional)' : '*';
+  const deskDetails = document.getElementById('found-desk-details');
+  const collectionDesk = document.getElementById('collection-desk');
+  deskDetails.hidden = lost;
+  collectionDesk.disabled = lost;
+  collectionDesk.required = !lost;
   const verification = document.getElementById('verification-details');
   verification.hidden = !lost;
   verification.querySelectorAll('input').forEach((input) => { input.required = lost; });
@@ -765,6 +771,8 @@ async function submitReport(event, type) {
     item.interiorColorOrLining = data.get('interiorColorOrLining');
     item.uniqueMarks = data.get('uniqueMarks');
     item.contents = data.get('contents');
+  } else {
+    item.collectionDesk = data.get('collectionDesk');
   }
   const payload = new FormData();
   payload.append('item', new Blob([JSON.stringify(item)], { type: 'application/json' }));
@@ -931,6 +939,10 @@ async function buildMatchRow(m, lostItemId, verificationAvailable) {
     claimButton.disabled = true;
     claimButton.textContent = 'Private details required';
     claimButton.title = 'This lost report needs all three saved private details before staff can review a claim.';
+  } else if (m.hasCollectionDesk === false) {
+    claimButton.disabled = true;
+    claimButton.textContent = 'Desk not assigned';
+    claimButton.title = 'This older found report needs a collection desk before it can be claimed.';
   } else if (m.canCreateClaim === false) {
     // This flag is calculated by the server. Keep the control visible so an
     // ineligible viewer understands why there is no action to take.
@@ -1062,6 +1074,13 @@ async function renderClaimDetail(container, key) {
     reviewHeading.textContent = 'Staff review complete';
   } else if (statusValue === 'CANCELLED') {
     reviewHeading.textContent = 'Claim cancelled';
+  }
+
+  const handoverApproved = statusValue === 'APPROVED_FOR_HANDOVER' || statusValue === 'VERIFIED';
+  const collectionDesk = String(claim?.collectionDesk || '').trim();
+  if (handoverApproved && role === 'CLAIMANT' && collectionDesk) {
+    document.getElementById('claim-collection-section').hidden = false;
+    document.getElementById('claim-collection-desk').textContent = collectionDesk;
   }
 
   if (claim.canCancel) {
@@ -1215,6 +1234,7 @@ function buildStaffReviewCard(entry) {
   people.className = 'staff-people';
   addStaffReviewFact(people, 'Claimant', personText(entry.claimant || claim.claimant, 'Lost-report owner'));
   addStaffReviewFact(people, 'Finder', personText(entry.finder || claim.finder, 'Found-report reporter'));
+  addStaffReviewFact(people, 'Collection desk', claim.collectionDesk);
   card.append(people);
 
   const reports = document.createElement('div');

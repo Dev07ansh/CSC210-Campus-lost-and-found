@@ -3,6 +3,7 @@ package com.csc210.backend;
 import com.csc210.backend.dsa.SimilarityScorer;
 import com.csc210.backend.model.Claim;
 import com.csc210.backend.model.ClaimStatus;
+import com.csc210.backend.model.CollectionDesk;
 import com.csc210.backend.model.FoundItem;
 import com.csc210.backend.model.LostItem;
 import com.csc210.backend.model.LostItemSecret;
@@ -81,6 +82,7 @@ class ClaimServiceTest {
         found.setLocation("Library");
         found.setDescription("Leather wallet");
         found.setStatus("Active");
+        found.setCollectionDesk(CollectionDesk.UNIVERSITY_CENTRE_RECEPTION.label());
         found.setReporter(finder);
         secret = new LostItemSecret("red lining", "scratch lower corner", "college id and cash");
         secret.setLostItem(lost);
@@ -106,6 +108,7 @@ class ClaimServiceTest {
         assertSame(claimant, saved.getValue().getClaimant());
         assertSame(finder, saved.getValue().getFinder());
         assertEquals(1.0, response.matchScore(), 0.000001);
+        assertNull(response.collectionDesk());
         assertFalse(response.canReview());
         assertFalse(response.canCompleteHandover());
 
@@ -125,6 +128,36 @@ class ClaimServiceTest {
 
         assertEquals(409, error.getStatusCode().value());
         verify(claims, never()).save(any(Claim.class));
+    }
+
+    @Test
+    void refusesToCreateAClaimForALegacyFoundReportWithoutACollectionDesk() {
+        found.setCollectionDesk(null);
+        when(lostItems.findById(LOST_ID)).thenReturn(Optional.of(lost));
+        when(foundItems.findById(FOUND_ID)).thenReturn(Optional.of(found));
+
+        ResponseStatusException error = assertThrows(ResponseStatusException.class,
+                () -> service.create(claimant, new ClaimService.CreateClaimRequest(LOST_ID, FOUND_ID)));
+
+        assertEquals(409, error.getStatusCode().value());
+        verify(claims, never()).save(any(Claim.class));
+    }
+
+    @Test
+    void exposesCollectionDeskOnlyToAnApprovedClaimant() {
+        Claim claim = pendingClaim();
+        when(claims.findByClaimantIdOrFinderIdOrderByCreatedAtDesc(1L, 1L)).thenReturn(List.of(claim));
+        when(claims.findByClaimantIdOrFinderIdOrderByCreatedAtDesc(2L, 2L)).thenReturn(List.of(claim));
+
+        assertNull(service.mine(claimant).getFirst().collectionDesk());
+        assertNull(service.mine(finder).getFirst().collectionDesk());
+
+        claim.setStatus(ClaimStatus.APPROVED_FOR_HANDOVER);
+        assertEquals("University Centre Reception", service.mine(claimant).getFirst().collectionDesk());
+        assertNull(service.mine(finder).getFirst().collectionDesk());
+
+        claim.setStatus(ClaimStatus.RESOLVED);
+        assertEquals("University Centre Reception", service.mine(claimant).getFirst().collectionDesk());
     }
 
     @Test

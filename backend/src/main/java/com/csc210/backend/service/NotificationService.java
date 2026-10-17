@@ -65,9 +65,13 @@ public class NotificationService {
     @Transactional
     public void claimApprovedForHandover(Claim claim) {
         String route = claimRoute(claim);
+        String desk = claim.getFoundItem() == null ? null : CollectionDesk.normalize(claim.getFoundItem().getCollectionDesk());
+        String claimantMessage = desk == null
+                ? "Staff approved your claim. Bring your campus ID to the collection desk for the in-person handover."
+                : "Staff approved your claim. Take your campus ID to " + desk + " to collect the item.";
         publish(claim.getClaimant(), NotificationType.CLAIM_APPROVED_FOR_HANDOVER,
                 "Claim approved for handover",
-                "Staff approved your claim. Bring your item details to the in-person handover.",
+                claimantMessage,
                 route, null);
         publish(claim.getFinder(), NotificationType.CLAIM_APPROVED_FOR_HANDOVER,
                 "Claim approved for handover",

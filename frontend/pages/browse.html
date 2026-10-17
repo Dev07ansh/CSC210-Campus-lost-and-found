@@ -19,8 +19,15 @@
   <select id="location" onchange="filterItems()">
     <option value="">All locations</option>
   </select>
-  <input id="start" type="date" onchange="filterItems()">
-  <input id="end" type="date" onchange="filterItems()">
+  <label class="filter-date-field">
+    <input id="start" type="date" aria-label="Found report date — from" onchange="filterItems()">
+    <span class="filter-date-hint" aria-hidden="true">Found date — from</span>
+  </label>
+  <label class="filter-date-field">
+    <input id="end" type="date" aria-label="Found report date — to" onchange="filterItems()">
+    <span class="filter-date-hint" aria-hidden="true">Found date — to</span>
+  </label>
 </div>
+<p class="filter-date-note">This date range filters found reports only. Lost report dates are not currently filtered here.</p>
 <p id="algorithm" class="dsa-note"></p>
 <div id="results" class="item-grid"></div>

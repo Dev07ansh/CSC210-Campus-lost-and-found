@@ -63,7 +63,9 @@ public class LostItemController {
         final User viewer = currentUser;
         return found.matches(id, limit).stream()
                 .map(match -> new FoundItemService.FoundItemMatch(match.item(), match.score(),
-                        permitted && match.item().getReporter() != null && !currentUsers.same(viewer, match.item().getReporter())))
+                        permitted && match.hasCollectionDesk() && match.item().getReporter() != null
+                                && !currentUsers.same(viewer, match.item().getReporter()),
+                        match.hasCollectionDesk()))
                 .toList();
     }
 
