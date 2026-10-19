@@ -1,0 +1,101 @@
+report_id,report_type,item_name,category,color,location,description,date_time,source,seed
+L01,LOST,Black leather wallet,Wallet,Black,Library,contains campus ID and blue transit card,2026-09-01T09:00:00,manual-scenarios-v1,none
+L02,LOST,Silver dorm key ring,Keys,Silver,Residence Hall,three keys and red room tag,2026-09-02T11:00:00,manual-scenarios-v1,none
+L03,LOST,White wireless earbuds,Electronics,White,Student Centre,mint charging case with left bud scratched,2026-09-03T12:00:00,manual-scenarios-v1,none
+L04,LOST,Red canvas backpack,Bags,Red,Library,math notebook and metal water bottle inside,2026-09-04T13:00:00,manual-scenarios-v1,none
+L05,LOST,Student ID card,Documents,White,Engineering Building,card for Aarav Singh in clear sleeve,2026-09-05T10:00:00,manual-scenarios-v1,none
+L06,LOST,Blue denim jacket,Clothing,Blue,Cafeteria,small star patch on left sleeve,2026-09-06T14:00:00,manual-scenarios-v1,none
+L07,LOST,Gold round glasses,Accessories,Gold,Library,thin gold frame with black temple tips,2026-09-07T15:00:00,manual-scenarios-v1,none
+L08,LOST,Steel water bottle,Water Bottle,Silver,Gym,navy sticker and dent near base,2026-09-08T16:00:00,manual-scenarios-v1,none
+L09,LOST,Black folding umbrella,Umbrella,Black,Gate 12,wooden curved handle,2026-09-09T08:00:00,manual-scenarios-v1,none
+L10,LOST,Blue scientific calculator,Stationery,Blue,Science Block,initials RK on back cover,2026-09-10T09:00:00,manual-scenarios-v1,none
+L11,LOST,Brown card wallet,Wallet,Brown,Cafeteria,two bank cards and bus pass,2026-09-11T12:00:00,manual-scenarios-v1,none
+L12,LOST,Car keys with frog keychain,Keys,Green,Parking Area,green frog charm and two car keys,2026-09-12T18:00:00,manual-scenarios-v1,none
+L13,LOST,Silver USB C charger,Electronics,Silver,Computer Lab,short cable with blue adapter,2026-09-13T11:00:00,manual-scenarios-v1,none
+L14,LOST,Blue Puma backpack,Bags,Blue,Residence Hall,grey straps and physics textbook,2026-09-14T17:00:00,manual-scenarios-v1,none
+L15,LOST,Passport folder,Documents,Blue,University Centre,navy folder with travel papers,2026-09-15T10:00:00,manual-scenarios-v1,none
+L16,LOST,Black sports cap,Clothing,Black,Gym,white campus logo on front,2026-09-16T19:00:00,manual-scenarios-v1,none
+L17,LOST,Silver wrist watch,Accessories,Silver,Student Centre,round face and brown leather strap,2026-09-17T13:00:00,manual-scenarios-v1,none
+L18,LOST,Orange thermal flask,Water Bottle,Orange,Library,letter M scratched under lid,2026-09-18T10:00:00,manual-scenarios-v1,none
+L19,LOST,Yellow rain umbrella,Umbrella,Yellow,Cafeteria,large umbrella with sunflower print,2026-09-19T14:00:00,manual-scenarios-v1,none
+L20,LOST,Green notebook,Stationery,Green,Residence Hall,organic chemistry notes and name Meera,2026-09-20T09:00:00,manual-scenarios-v1,none
+F01,FOUND,Black leather wallet,Wallet,Black,Library,leather wallet with campus identification card,2026-09-01T09:30:00,manual-scenarios-v1,none
+F02,FOUND,Brown card wallet,Wallet,Brown,Cafeteria,brown wallet holding bus pass and two cards,2026-09-11T12:30:00,manual-scenarios-v1,none
+F03,FOUND,Red card holder,Wallet,Red,Library,red holder with one library card,2026-09-02T08:00:00,manual-scenarios-v1,none
+F04,FOUND,Black fabric wallet,Wallet,Black,Gate 12,zip wallet with coins and receipt,2026-09-03T08:00:00,manual-scenarios-v1,none
+F05,FOUND,Green coin purse,Wallet,Green,Cafeteria,small purse with loose coins,2026-09-04T08:00:00,manual-scenarios-v1,none
+F06,FOUND,Blue nylon wallet,Wallet,Blue,Residence Hall,nylon wallet with locker key,2026-09-05T08:00:00,manual-scenarios-v1,none
+F07,FOUND,Beige travel wallet,Wallet,Beige,University Centre,travel pouch with ticket stubs,2026-09-06T08:00:00,manual-scenarios-v1,none
+F08,FOUND,Card sleeve,Wallet,Not specified,Engineering Building,clear sleeve with membership card,2026-09-07T08:00:00,manual-scenarios-v1,none
+F09,FOUND,Silver dorm key ring,Keys,Silver,Residence Hall,three keys and red room tag,2026-09-02T11:30:00,manual-scenarios-v1,none
+F10,FOUND,Car keyes green frog key chain,Keys,Green,Parking Area,green frog charm with two vehicle keys,2026-09-12T18:30:00,manual-scenarios-v1,none
+F11,FOUND,Silver house keys,Keys,Silver,Library,two house keys on plain ring,2026-09-03T09:00:00,manual-scenarios-v1,none
+F12,FOUND,Black car key fob,Keys,Black,Parking Area,single electronic key fob,2026-09-04T09:00:00,manual-scenarios-v1,none
+F13,FOUND,Keys with yellow ribbon,Keys,Silver,Student Centre,three keys tied with ribbon,2026-09-05T09:00:00,manual-scenarios-v1,none
+F14,FOUND,Bike lock key,Keys,Black,Gate 12,small key marked ABUS,2026-09-06T09:00:00,manual-scenarios-v1,none
+F15,FOUND,Grey key ring,Keys,Grey,Cafeteria,key ring with two flat keys,2026-09-07T09:00:00,manual-scenarios-v1,none
+F16,FOUND,Office cabinet keys,Keys,Silver,Engineering Building,four cabinet keys and label,2026-09-08T09:00:00,manual-scenarios-v1,none
+F17,FOUND,White wireless earbuds,Electronics,White,Student Centre,mint charging case with scratched left earbud,2026-09-03T12:30:00,manual-scenarios-v1,none
+F18,FOUND,Sliver USB C charger cable,Electronics,Grey,Computer Lab,short charging cable with blue adapter,2026-09-13T11:30:00,manual-scenarios-v1,none
+F19,FOUND,Black phone cover,Electronics,Black,Library,phone case with floral pattern,2026-09-04T10:00:00,manual-scenarios-v1,none
+F20,FOUND,White USB mouse,Electronics,White,Computer Lab,wired mouse with scroll wheel,2026-09-05T10:00:00,manual-scenarios-v1,none
+F21,FOUND,Blue power bank,Electronics,Blue,Cafeteria,portable charger with one cable,2026-09-06T10:00:00,manual-scenarios-v1,none
+F22,FOUND,Black laptop charger,Electronics,Black,Engineering Building,charger with round connector,2026-09-07T10:00:00,manual-scenarios-v1,none
+F23,FOUND,Wireless earbud case,Electronics,Black,Gym,empty charging case for earbuds,2026-09-08T10:00:00,manual-scenarios-v1,none
+F24,FOUND,Silver flash drive,Electronics,Silver,University Centre,USB drive marked 32GB,2026-09-09T10:00:00,manual-scenarios-v1,none
+F25,FOUND,Red canvas backpack,Bags,Red,Library,math notebook and metal bottle inside,2026-09-04T13:30:00,manual-scenarios-v1,none
+F26,FOUND,Blue Pumma back pack,Bags,Blue,Residence Hall,grey straps with physics textbook,2026-09-14T17:30:00,manual-scenarios-v1,none
+F27,FOUND,Black laptop bag,Bags,Black,Computer Lab,bag with charger pocket,2026-09-05T11:00:00,manual-scenarios-v1,none
+F28,FOUND,Red drawstring bag,Bags,Red,Gym,bag with sports shoes,2026-09-06T11:00:00,manual-scenarios-v1,none
+F29,FOUND,Blue tote bag,Bags,Blue,Cafeteria,canvas tote with lunch box,2026-09-07T11:00:00,manual-scenarios-v1,none
+F30,FOUND,Green hiking backpack,Bags,Green,Gate 12,backpack with rain cover,2026-09-08T11:00:00,manual-scenarios-v1,none
+F31,FOUND,Black messenger bag,Bags,Black,University Centre,bag with notebook pocket,2026-09-09T11:00:00,manual-scenarios-v1,none
+F32,FOUND,Yellow school bag,Bags,Yellow,Residence Hall,bag with pencil case,2026-09-10T11:00:00,manual-scenarios-v1,none
+F33,FOUND,Student ID card,Documents,White,Engineering Building,Aarav Singh card in clear sleeve,2026-09-05T10:30:00,manual-scenarios-v1,none
+F34,FOUND,Passport folder,Documents,Blue,University Centre,navy travel document folder,2026-09-15T10:30:00,manual-scenarios-v1,none
+F35,FOUND,White assignment sheets,Documents,White,Library,printed calculus assignment pages,2026-09-06T12:00:00,manual-scenarios-v1,none
+F36,FOUND,Blue notebook folder,Documents,Blue,Science Block,folder with lecture handouts,2026-09-07T12:00:00,manual-scenarios-v1,none
+F37,FOUND,Library card,Documents,White,Cafeteria,student library access card,2026-09-08T12:00:00,manual-scenarios-v1,none
+F38,FOUND,Black certificate tube,Documents,Black,University Centre,tube with rolled paper,2026-09-09T12:00:00,manual-scenarios-v1,none
+F39,FOUND,Blue exam booklet,Documents,Blue,Engineering Building,booklet with blank pages,2026-09-10T12:00:00,manual-scenarios-v1,none
+F40,FOUND,Clear document sleeve,Documents,Not specified,Library,empty plastic sleeve,2026-09-11T12:00:00,manual-scenarios-v1,none
+F41,FOUND,Blue denim jacket,Clothing,Blue,Cafeteria,star patch on left sleeve,2026-09-06T14:30:00,manual-scenarios-v1,none
+F42,FOUND,Black sports cap,Clothing,Black,Gym,white campus logo on front,2026-09-16T19:30:00,manual-scenarios-v1,none
+F43,FOUND,Red hoodie,Clothing,Red,Residence Hall,hoodie with zipper,2026-09-07T13:00:00,manual-scenarios-v1,none
+F44,FOUND,Blue scarf,Clothing,Blue,Library,wool scarf with stripes,2026-09-08T13:00:00,manual-scenarios-v1,none
+F45,FOUND,Black gloves,Clothing,Black,Gate 12,pair of winter gloves,2026-09-09T13:00:00,manual-scenarios-v1,none
+F46,FOUND,White lab coat,Clothing,White,Science Block,coat with pen stain,2026-09-10T13:00:00,manual-scenarios-v1,none
+F47,FOUND,Green rain jacket,Clothing,Green,Cafeteria,folded rain jacket,2026-09-11T13:00:00,manual-scenarios-v1,none
+F48,FOUND,Brown belt,Clothing,Brown,University Centre,leather belt with buckle,2026-09-12T13:00:00,manual-scenarios-v1,none
+F49,FOUND,Gold round glasses,Accessories,Gold,Library,thin gold frame with black temple tips,2026-09-07T15:30:00,manual-scenarios-v1,none
+F50,FOUND,Silver wrist watch,Accessories,Silver,Student Centre,round face brown leather strap,2026-09-17T13:30:00,manual-scenarios-v1,none
+F51,FOUND,Black sunglasses,Accessories,Black,Gate 12,dark plastic frame,2026-09-08T14:00:00,manual-scenarios-v1,none
+F52,FOUND,Gold bracelet,Accessories,Gold,Cafeteria,chain bracelet with charm,2026-09-09T14:00:00,manual-scenarios-v1,none
+F53,FOUND,Silver ring,Accessories,Silver,Library,simple metal ring,2026-09-10T14:00:00,manual-scenarios-v1,none
+F54,FOUND,Blue hair clip,Accessories,Blue,Residence Hall,plastic hair clip,2026-09-11T14:00:00,manual-scenarios-v1,none
+F55,FOUND,Black wrist band,Accessories,Black,Gym,rubber fitness band,2026-09-12T14:00:00,manual-scenarios-v1,none
+F56,FOUND,Brown sunglasses case,Accessories,Brown,University Centre,empty hard case,2026-09-13T14:00:00,manual-scenarios-v1,none
+F57,FOUND,Steel water bottle,Water Bottle,Silver,Gym,navy sticker and dent near base,2026-09-08T16:30:00,manual-scenarios-v1,none
+F58,FOUND,Blue plastic bottle,Water Bottle,Blue,Library,bottle with flip lid,2026-09-09T15:00:00,manual-scenarios-v1,none
+F59,FOUND,Green sports bottle,Water Bottle,Green,Gym,large bottle with handle,2026-09-10T15:00:00,manual-scenarios-v1,none
+F60,FOUND,Silver flask,Water Bottle,Silver,Cafeteria,small flask with plain lid,2026-09-11T15:00:00,manual-scenarios-v1,none
+F61,FOUND,Red water bottle,Water Bottle,Red,Gate 12,red metal bottle,2026-09-12T15:00:00,manual-scenarios-v1,none
+F62,FOUND,Black thermal bottle,Water Bottle,Black,Residence Hall,thermal bottle with no markings,2026-09-13T15:00:00,manual-scenarios-v1,none
+F63,FOUND,Yellow shaker bottle,Water Bottle,Yellow,Gym,protein shaker cup,2026-09-14T15:00:00,manual-scenarios-v1,none
+F64,FOUND,White reusable bottle,Water Bottle,White,University Centre,white bottle with logo,2026-09-15T15:00:00,manual-scenarios-v1,none
+F65,FOUND,Black folding umbrella,Umbrella,Black,Gate 12,wooden curved handle,2026-09-09T08:30:00,manual-scenarios-v1,none
+F66,FOUND,Blue compact umbrella,Umbrella,Blue,Library,small folding umbrella,2026-09-10T16:00:00,manual-scenarios-v1,none
+F67,FOUND,Red rain umbrella,Umbrella,Red,Cafeteria,red umbrella with metal handle,2026-09-11T16:00:00,manual-scenarios-v1,none
+F68,FOUND,Black golf umbrella,Umbrella,Black,Gym,large umbrella with straight handle,2026-09-12T16:00:00,manual-scenarios-v1,none
+F69,FOUND,Green umbrella,Umbrella,Green,Residence Hall,folded umbrella in sleeve,2026-09-13T16:00:00,manual-scenarios-v1,none
+F70,FOUND,Orange compact umbrella,Umbrella,Orange,University Centre,small orange umbrella,2026-09-14T16:00:00,manual-scenarios-v1,none
+F71,FOUND,Blue rain umbrella,Umbrella,Blue,Gate 12,umbrella with plastic handle,2026-09-15T16:00:00,manual-scenarios-v1,none
+F72,FOUND,White umbrella,Umbrella,White,Science Block,white folded umbrella,2026-09-16T16:00:00,manual-scenarios-v1,none
+F73,FOUND,Blue scientific calculator,Stationery,Blue,Science Block,initials RK on back cover,2026-09-10T09:30:00,manual-scenarios-v1,none
+F74,FOUND,Green notebook,Stationery,Green,Library,lined notebook with equations,2026-09-11T17:00:00,manual-scenarios-v1,none
+F75,FOUND,Black pen case,Stationery,Black,Cafeteria,case holding blue pens,2026-09-12T17:00:00,manual-scenarios-v1,none
+F76,FOUND,Yellow calculator,Stationery,Yellow,Science Block,basic calculator with stickers,2026-09-13T17:00:00,manual-scenarios-v1,none
+F77,FOUND,Green notebook,Stationery,Green,Residence Hall,notebook with blank pages,2026-09-14T17:00:00,manual-scenarios-v1,none
+F78,FOUND,Red pencil pouch,Stationery,Red,Library,pouch with pencils and eraser,2026-09-15T17:00:00,manual-scenarios-v1,none
+F79,FOUND,White lab notebook,Stationery,White,Engineering Building,notebook with graph pages,2026-09-16T17:00:00,manual-scenarios-v1,none
+F80,FOUND,Purple folder,Stationery,Purple,University Centre,folder with loose paper,2026-09-17T17:00:00,manual-scenarios-v1,none

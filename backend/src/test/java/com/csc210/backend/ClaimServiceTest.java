@@ -70,6 +70,7 @@ class ClaimServiceTest {
         lost = new LostItem();
         setId(lost, LOST_ID);
         lost.setItemName("Black wallet");
+        lost.setCategory("Wallet");
         lost.setColor("Black");
         lost.setLocation("Library");
         lost.setDescription("Leather wallet");
@@ -78,6 +79,7 @@ class ClaimServiceTest {
         found = new FoundItem();
         setId(found, FOUND_ID);
         found.setItemName("Black wallet");
+        found.setCategory("Wallet");
         found.setColor("Black");
         found.setLocation("Library");
         found.setDescription("Leather wallet");

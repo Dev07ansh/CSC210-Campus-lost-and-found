@@ -56,6 +56,27 @@ public class FoundItemService {
     public List<FoundItem> search(String query,boolean prefix){List<String> words=normalizer.extractKeywords(query);if(words.isEmpty())return List.of();List<Long> ids=null;for(String word:words){List<Long> next=prefix?trie.startsWith(word):trie.search(word);if(ids==null)ids=new ArrayList<>(next);else ids.retainAll(next);if(ids.isEmpty())return List.of();}return foundRepo.findAllById(ids);}
     public List<FoundItemMatch> matches(Long lostId,int limit){LostItem lost=lostRepo.findById(lostId).orElseThrow(()->new IllegalArgumentException("Lost item not found"));MaxHeap<Ranked> heap=new MaxHeap<>();for(FoundItem item:foundRepo.findAll())if(isActive(item.getStatus()))heap.offer(new Ranked(item,scorer.score(lost,item)));List<FoundItemMatch> result=new ArrayList<>();while(!heap.isEmpty()&&result.size()<Math.max(1,Math.min(limit,20))){Ranked ranked=heap.poll();result.add(new FoundItemMatch(ranked.item,ranked.score,false,CollectionDesk.isSupported(ranked.item.getCollectionDesk())));}return result;}
     /** The desk label stays private; this flag only lets the UI explain why an older report cannot be claimed. */
-    public record FoundItemMatch(FoundItem item,double score,boolean canCreateClaim,boolean hasCollectionDesk){} private static class Ranked implements Comparable<Ranked>{FoundItem item;double score;Ranked(FoundItem item,double score){this.item=item;this.score=score;}public int compareTo(Ranked other){return Double.compare(score,other.score);}}
+    public record FoundItemMatch(FoundItem item,double score,boolean canCreateClaim,boolean hasCollectionDesk){}
+    /**
+     * MaxHeap returns the greatest value first. Equal scores therefore reverse
+     * the candidate-ID comparison so the lower persisted candidate ID is
+     * returned first, independently of repository iteration order.
+     */
+    private static class Ranked implements Comparable<Ranked>{
+        FoundItem item;double score;
+        Ranked(FoundItem item,double score){this.item=item;this.score=score;}
+        public int compareTo(Ranked other){
+            return compareForMaxHeap(item,score,other.item,other.score);
+        }
+    }
+    /** Package-visible for deterministic ranking tests; positive means {@code first} is polled first by MaxHeap. */
+    static int compareForMaxHeap(FoundItem first,double firstScore,FoundItem second,double secondScore){
+        int byScore=Double.compare(firstScore,secondScore);
+        if(byScore!=0)return byScore;
+        return Long.compare(candidateId(second),candidateId(first));
+    }
+    private static long candidateId(FoundItem item){
+        return item.getId()==null?Long.MAX_VALUE:item.getId();
+    }
     private boolean isActive(String status){return status!=null&&"active".equalsIgnoreCase(status);}
 }

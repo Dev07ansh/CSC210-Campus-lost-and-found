@@ -1,0 +1,139 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1520" height="638" viewBox="0 0 1520 638">
+<style>text{font-family:Arial,sans-serif;fill:#172033}.title{font-size:20px;font-weight:bold}.head{font-size:13px;font-weight:bold}.label{font-size:12px}.value{font-size:11px}</style>
+<rect width="100%" height="100%" fill="#ffffff"/>
+<text class="title" x="24" y="30">P2.4 matching benchmark: measured F1, median query-set runtime, and candidates examined</text>
+<text class="head" x="24" y="65">Method / weights</text>
+<text class="head" x="390" y="65">F1 (0–1)</text>
+<text class="head" x="780" y="65">Median runtime (relative)</text>
+<text class="head" x="1190" y="65">Candidates examined</text>
+<text class="label" x="24" y="97">exact_filtering / 35_30_35</text>
+<rect x="390" y="82" width="300" height="20" rx="3" fill="#edf1f7"/>
+<rect x="390" y="82" width="157" height="20" rx="3" fill="#4f46e5"/>
+<text class="value" x="700" y="97">0.522</text>
+<rect x="780" y="82" width="300" height="20" rx="3" fill="#edf1f7"/>
+<rect x="780" y="82" width="26" height="20" rx="3" fill="#0f9f8d"/>
+<text class="value" x="1090" y="97">13.330 ms</text>
+<rect x="1190" y="82" width="180" height="20" rx="3" fill="#edf1f7"/>
+<rect x="1190" y="82" width="180" height="20" rx="3" fill="#f59e0b"/>
+<text class="value" x="1380" y="97">80.0</text>
+<text class="label" x="24" y="139">weighted_full_scan / 35_30_35</text>
+<rect x="390" y="124" width="300" height="20" rx="3" fill="#edf1f7"/>
+<rect x="390" y="124" width="282" height="20" rx="3" fill="#4f46e5"/>
+<text class="value" x="700" y="139">0.941</text>
+<rect x="780" y="124" width="300" height="20" rx="3" fill="#edf1f7"/>
+<rect x="780" y="124" width="38" height="20" rx="3" fill="#0f9f8d"/>
+<text class="value" x="1090" y="139">19.070 ms</text>
+<rect x="1190" y="124" width="180" height="20" rx="3" fill="#edf1f7"/>
+<rect x="1190" y="124" width="180" height="20" rx="3" fill="#f59e0b"/>
+<text class="value" x="1380" y="139">80.0</text>
+<text class="label" x="24" y="181">weighted_full_scan / 25_25_50</text>
+<rect x="390" y="166" width="300" height="20" rx="3" fill="#edf1f7"/>
+<rect x="390" y="166" width="300" height="20" rx="3" fill="#4f46e5"/>
+<text class="value" x="700" y="181">1.000</text>
+<rect x="780" y="166" width="300" height="20" rx="3" fill="#edf1f7"/>
+<rect x="780" y="166" width="30" height="20" rx="3" fill="#0f9f8d"/>
+<text class="value" x="1090" y="181">14.974 ms</text>
+<rect x="1190" y="166" width="180" height="20" rx="3" fill="#edf1f7"/>
+<rect x="1190" y="166" width="180" height="20" rx="3" fill="#f59e0b"/>
+<text class="value" x="1380" y="181">80.0</text>
+<text class="label" x="24" y="223">weighted_full_scan / 20_30_50</text>
+<rect x="390" y="208" width="300" height="20" rx="3" fill="#edf1f7"/>
+<rect x="390" y="208" width="300" height="20" rx="3" fill="#4f46e5"/>
+<text class="value" x="700" y="223">1.000</text>
+<rect x="780" y="208" width="300" height="20" rx="3" fill="#edf1f7"/>
+<rect x="780" y="208" width="27" height="20" rx="3" fill="#0f9f8d"/>
+<text class="value" x="1090" y="223">13.614 ms</text>
+<rect x="1190" y="208" width="180" height="20" rx="3" fill="#edf1f7"/>
+<rect x="1190" y="208" width="180" height="20" rx="3" fill="#f59e0b"/>
+<text class="value" x="1380" y="223">80.0</text>
+<text class="label" x="24" y="265">indexed_weighted_ranking / 35_30_35</text>
+<rect x="390" y="250" width="300" height="20" rx="3" fill="#edf1f7"/>
+<rect x="390" y="250" width="282" height="20" rx="3" fill="#4f46e5"/>
+<text class="value" x="700" y="265">0.941</text>
+<rect x="780" y="250" width="300" height="20" rx="3" fill="#edf1f7"/>
+<rect x="780" y="250" width="8" height="20" rx="3" fill="#0f9f8d"/>
+<text class="value" x="1090" y="265">4.168 ms</text>
+<rect x="1190" y="250" width="180" height="20" rx="3" fill="#edf1f7"/>
+<rect x="1190" y="250" width="18" height="20" rx="3" fill="#f59e0b"/>
+<text class="value" x="1380" y="265">8.0</text>
+<text class="label" x="24" y="307">indexed_weighted_ranking / 25_25_50</text>
+<rect x="390" y="292" width="300" height="20" rx="3" fill="#edf1f7"/>
+<rect x="390" y="292" width="300" height="20" rx="3" fill="#4f46e5"/>
+<text class="value" x="700" y="307">1.000</text>
+<rect x="780" y="292" width="300" height="20" rx="3" fill="#edf1f7"/>
+<rect x="780" y="292" width="10" height="20" rx="3" fill="#0f9f8d"/>
+<text class="value" x="1090" y="307">4.987 ms</text>
+<rect x="1190" y="292" width="180" height="20" rx="3" fill="#edf1f7"/>
+<rect x="1190" y="292" width="18" height="20" rx="3" fill="#f59e0b"/>
+<text class="value" x="1380" y="307">8.0</text>
+<text class="label" x="24" y="349">indexed_weighted_ranking / 20_30_50</text>
+<rect x="390" y="334" width="300" height="20" rx="3" fill="#edf1f7"/>
+<rect x="390" y="334" width="300" height="20" rx="3" fill="#4f46e5"/>
+<text class="value" x="700" y="349">1.000</text>
+<rect x="780" y="334" width="300" height="20" rx="3" fill="#edf1f7"/>
+<rect x="780" y="334" width="6" height="20" rx="3" fill="#0f9f8d"/>
+<text class="value" x="1090" y="349">3.269 ms</text>
+<rect x="1190" y="334" width="180" height="20" rx="3" fill="#edf1f7"/>
+<rect x="1190" y="334" width="18" height="20" rx="3" fill="#f59e0b"/>
+<text class="value" x="1380" y="349">8.0</text>
+<text class="label" x="24" y="391">enhanced_tf_idf_cosine / 35_30_35</text>
+<rect x="390" y="376" width="300" height="20" rx="3" fill="#edf1f7"/>
+<rect x="390" y="376" width="282" height="20" rx="3" fill="#4f46e5"/>
+<text class="value" x="700" y="391">0.941</text>
+<rect x="780" y="376" width="300" height="20" rx="3" fill="#edf1f7"/>
+<rect x="780" y="376" width="300" height="20" rx="3" fill="#0f9f8d"/>
+<text class="value" x="1090" y="391">152.046 ms</text>
+<rect x="1190" y="376" width="180" height="20" rx="3" fill="#edf1f7"/>
+<rect x="1190" y="376" width="180" height="20" rx="3" fill="#f59e0b"/>
+<text class="value" x="1380" y="391">80.0</text>
+<text class="label" x="24" y="433">enhanced_tf_idf_cosine / 25_25_50</text>
+<rect x="390" y="418" width="300" height="20" rx="3" fill="#edf1f7"/>
+<rect x="390" y="418" width="291" height="20" rx="3" fill="#4f46e5"/>
+<text class="value" x="700" y="433">0.971</text>
+<rect x="780" y="418" width="300" height="20" rx="3" fill="#edf1f7"/>
+<rect x="780" y="418" width="298" height="20" rx="3" fill="#0f9f8d"/>
+<text class="value" x="1090" y="433">151.218 ms</text>
+<rect x="1190" y="418" width="180" height="20" rx="3" fill="#edf1f7"/>
+<rect x="1190" y="418" width="180" height="20" rx="3" fill="#f59e0b"/>
+<text class="value" x="1380" y="433">80.0</text>
+<text class="label" x="24" y="475">enhanced_tf_idf_cosine / 20_30_50</text>
+<rect x="390" y="460" width="300" height="20" rx="3" fill="#edf1f7"/>
+<rect x="390" y="460" width="291" height="20" rx="3" fill="#4f46e5"/>
+<text class="value" x="700" y="475">0.971</text>
+<rect x="780" y="460" width="300" height="20" rx="3" fill="#edf1f7"/>
+<rect x="780" y="460" width="287" height="20" rx="3" fill="#0f9f8d"/>
+<text class="value" x="1090" y="475">145.637 ms</text>
+<rect x="1190" y="460" width="180" height="20" rx="3" fill="#edf1f7"/>
+<rect x="1190" y="460" width="180" height="20" rx="3" fill="#f59e0b"/>
+<text class="value" x="1380" y="475">80.0</text>
+<text class="label" x="24" y="517">enhanced_levenshtein_token_fuzzy / 35_30_35</text>
+<rect x="390" y="502" width="300" height="20" rx="3" fill="#edf1f7"/>
+<rect x="390" y="502" width="291" height="20" rx="3" fill="#4f46e5"/>
+<text class="value" x="700" y="517">0.971</text>
+<rect x="780" y="502" width="300" height="20" rx="3" fill="#edf1f7"/>
+<rect x="780" y="502" width="58" height="20" rx="3" fill="#0f9f8d"/>
+<text class="value" x="1090" y="517">29.351 ms</text>
+<rect x="1190" y="502" width="180" height="20" rx="3" fill="#edf1f7"/>
+<rect x="1190" y="502" width="180" height="20" rx="3" fill="#f59e0b"/>
+<text class="value" x="1380" y="517">80.0</text>
+<text class="label" x="24" y="559">enhanced_levenshtein_token_fuzzy / 25_25_50</text>
+<rect x="390" y="544" width="300" height="20" rx="3" fill="#edf1f7"/>
+<rect x="390" y="544" width="291" height="20" rx="3" fill="#4f46e5"/>
+<text class="value" x="700" y="559">0.971</text>
+<rect x="780" y="544" width="300" height="20" rx="3" fill="#edf1f7"/>
+<rect x="780" y="544" width="56" height="20" rx="3" fill="#0f9f8d"/>
+<text class="value" x="1090" y="559">28.385 ms</text>
+<rect x="1190" y="544" width="180" height="20" rx="3" fill="#edf1f7"/>
+<rect x="1190" y="544" width="180" height="20" rx="3" fill="#f59e0b"/>
+<text class="value" x="1380" y="559">80.0</text>
+<text class="label" x="24" y="601">enhanced_levenshtein_token_fuzzy / 20_30_50</text>
+<rect x="390" y="586" width="300" height="20" rx="3" fill="#edf1f7"/>
+<rect x="390" y="586" width="291" height="20" rx="3" fill="#4f46e5"/>
+<text class="value" x="700" y="601">0.971</text>
+<rect x="780" y="586" width="300" height="20" rx="3" fill="#edf1f7"/>
+<rect x="780" y="586" width="57" height="20" rx="3" fill="#0f9f8d"/>
+<text class="value" x="1090" y="601">28.690 ms</text>
+<rect x="1190" y="586" width="180" height="20" rx="3" fill="#edf1f7"/>
+<rect x="1190" y="586" width="180" height="20" rx="3" fill="#f59e0b"/>
+<text class="value" x="1380" y="601">80.0</text>
+</svg>
