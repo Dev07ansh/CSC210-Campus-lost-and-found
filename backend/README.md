@@ -15,6 +15,7 @@ The API listens on `http://localhost:8080`; its database is `data/lostandfound.d
 ```text
 GET/POST  /api/lost-items
 GET/POST  /api/found-items
+GET/PUT/DELETE /api/report-drafts/{LOST|FOUND}
 GET       /api/found-items/search?query=wallet&prefix=true
 GET       /api/found-items/category/{category}
 GET       /api/found-items/date-range?start=...&end=...
@@ -28,6 +29,10 @@ POST      /api/claims/{id}/complete-handover
 POST      /api/claims/{id}/cancel
 POST      /api/auth/google
 ```
+
+## Report drafts
+
+Each signed-in user has one private autosaved draft for a lost report and one for a found report. The browser saves text and select fields after a brief pause and restores them when the corresponding form is reopened. Drafts are deleted only after successful submission or when the user chooses **Discard draft**. Image files are deliberately not retained as drafts, so a user must select the image again before submitting a found-item report.
 
 ## Claims and staff review
 

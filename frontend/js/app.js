@@ -119,6 +119,11 @@ let notificationUnreadCount = 0;
 let notificationPreferences = null;
 let notificationInboxAvailable = null;
 let staffReviewAccess = null;
+const REPORT_DRAFT_FIELDS = [
+  'title', 'category', 'color', 'location', 'description', 'date', 'time',
+  'collectionDesk', 'interiorColorOrLining', 'uniqueMarks', 'contents',
+];
+const REPORT_DRAFT_DELAY_MS = 700;
 
 // ============================================================
 // HTML partial & component loading
@@ -743,7 +748,105 @@ async function renderReportForm(container, type) {
   const verification = document.getElementById('verification-details');
   verification.hidden = !lost;
   verification.querySelectorAll('input').forEach((input) => { input.required = lost; });
-  document.getElementById('report-form').addEventListener('submit', (event) => submitReport(event, type));
+  const form = document.getElementById('report-form');
+  await restoreReportDraft(form, type);
+  let autosaveTimer;
+  form.addEventListener('input', () => {
+    window.clearTimeout(autosaveTimer);
+    autosaveTimer = window.setTimeout(() => saveReportDraft(form, type), REPORT_DRAFT_DELAY_MS);
+  });
+  form.addEventListener('change', () => {
+    window.clearTimeout(autosaveTimer);
+    void saveReportDraft(form, type);
+  });
+  document.getElementById('save-draft').addEventListener('click', () => saveReportDraft(form, type));
+  document.getElementById('discard-draft').addEventListener('click', () => discardReportDraft(form, type));
+  form.addEventListener('submit', (event) => submitReport(event, type));
+}
+
+function reportDraftLocalKey(type) {
+  return `lf_report_draft:${String(currentUser?.email || 'anonymous').trim().toLowerCase()}:${type}`;
+}
+function draftStatus(message, kind = '') {
+  const node = document.getElementById('draft-status');
+  if (!node) return;
+  node.textContent = message;
+  node.className = `draft-status ${kind}`.trim();
+}
+function reportDraftValues(form) {
+  return Object.fromEntries(REPORT_DRAFT_FIELDS.map((name) => [name, form.elements[name]?.value || '']));
+}
+function hasReportDraftValues(values) {
+  return Object.values(values || {}).some((value) => String(value || '').trim() !== '');
+}
+function applyReportDraft(form, values) {
+  REPORT_DRAFT_FIELDS.forEach((name) => {
+    if (form.elements[name] && values?.[name] != null) form.elements[name].value = values[name];
+  });
+}
+function localReportDraft(type) {
+  try { return JSON.parse(localStorage.getItem(reportDraftLocalKey(type)) || 'null'); } catch (_) { return null; }
+}
+function storeLocalReportDraft(type, values) {
+  try { localStorage.setItem(reportDraftLocalKey(type), JSON.stringify(values)); } catch (_) {}
+}
+function clearLocalReportDraft(type) {
+  try { localStorage.removeItem(reportDraftLocalKey(type)); } catch (_) {}
+}
+function setDraftControls(hasDraft) {
+  const discard = document.getElementById('discard-draft');
+  if (discard) discard.hidden = !hasDraft;
+}
+async function restoreReportDraft(form, type) {
+  let values = null;
+  if (backendAvailable && currentUser?.email) {
+    try {
+      const draft = await api(`/report-drafts/${type}`);
+      values = draft?.values || null;
+    } catch (_) {
+      // A temporary API failure must not make a person's local work disappear.
+      values = localReportDraft(type);
+    }
+  } else {
+    values = localReportDraft(type);
+  }
+  if (hasReportDraftValues(values)) {
+    applyReportDraft(form, values);
+    setDraftControls(true);
+    draftStatus('Draft restored. Changes save automatically.', 'saved');
+  } else {
+    draftStatus('Changes save automatically.', '');
+  }
+}
+async function saveReportDraft(form, type) {
+  const values = reportDraftValues(form);
+  if (!hasReportDraftValues(values)) return;
+  draftStatus('Saving draft…');
+  try {
+    if (backendAvailable && currentUser?.email) {
+      await api(`/report-drafts/${type}`, { method: 'PUT', body: JSON.stringify({ values }) });
+    } else {
+      storeLocalReportDraft(type, values);
+    }
+    setDraftControls(true);
+    draftStatus('Draft saved.', 'saved');
+  } catch (_) {
+    storeLocalReportDraft(type, values);
+    setDraftControls(true);
+    draftStatus('Saved in this browser until the API reconnects.', 'saved');
+  }
+}
+async function discardReportDraft(form, type) {
+  try {
+    if (backendAvailable && currentUser?.email) await api(`/report-drafts/${type}`, { method: 'DELETE' });
+  } catch (_) {
+    // The local copy is still cleared so the form can be intentionally reset.
+  }
+  clearLocalReportDraft(type);
+  form.reset();
+  document.getElementById('image-preview').textContent = 'No image selected';
+  setDraftControls(false);
+  draftStatus('Draft discarded.');
 }
 function previewImage(input) {
   const preview = document.getElementById('image-preview'),
@@ -780,6 +883,7 @@ async function submitReport(event, type) {
   if (image instanceof File && image.size > 0) payload.append('image', image);
   try {
     await api(type === 'LOST' ? '/lost-items' : '/found-items', { method: 'POST', body: payload });
+    await discardReportDraft(event.target, type);
     await loadItems();
     alert('Report submitted successfully.');
     navigate('reports');

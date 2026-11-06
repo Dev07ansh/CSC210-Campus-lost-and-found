@@ -23,7 +23,7 @@
       </div>
       <label>Photo <span id="photo-flag"></span>
         <input name="image" type="file" accept="image/jpeg,image/png,image/gif,image/webp" onchange="previewImage(this)">
-        <span class="input-help">JPG, PNG, GIF, or WebP; maximum 5 MB.</span>
+        <span class="input-help">JPG, PNG, GIF, or WebP; maximum 5 MB. Photos are not kept in drafts, so select one again before submitting.</span>
       </label>
       <div id="image-preview" class="image-preview">No image selected</div>
     </div>
@@ -53,6 +53,9 @@
       <p class="verification-info">✓ Saved with this report — you will not be asked to enter them again<br>✓ Staff compare them privately with the found report after you create a claim<br>✓ Do not include banking, card, government-ID, or phone-number details</p>
     </section>
     <div class="form-actions">
+      <span class="draft-status" id="draft-status" role="status" aria-live="polite">Draft not saved yet</span>
+      <button type="button" class="btn secondary" id="discard-draft" hidden>Discard draft</button>
+      <button type="button" class="btn secondary" id="save-draft">Save draft</button>
       <button type="button" class="btn secondary" onclick="navigate('dashboard')">Cancel</button>
       <button class="btn primary">Submit report</button>
     </div>

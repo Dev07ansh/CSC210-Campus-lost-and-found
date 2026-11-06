@@ -509,6 +509,14 @@ textarea {
 .form-actions {
   justify-content: flex-end;
 }
+.draft-status {
+  margin-right: auto;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+.draft-status.saved { color: var(--success); }
+.draft-status.error { color: var(--danger); }
 .image-preview {
   min-height: 120px;
   margin-top: 10px;
