@@ -48,6 +48,10 @@ public class LostItemController {
     }
 
     @GetMapping public List<LostItem> all(){return lost.all();}
+    @GetMapping("/mine")
+    public List<LostItem> mine(@RequestHeader(value = "X-User-Email", required = false) String userEmail) {
+        return lost.mine(currentUsers.requireUser(userEmail));
+    }
     @GetMapping("/{id}/matches")
     public List<FoundItemService.FoundItemMatch> matches(@PathVariable Long id,
                                                            @RequestParam(defaultValue="5") int limit,

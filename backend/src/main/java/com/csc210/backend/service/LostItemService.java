@@ -33,6 +33,7 @@ import java.util.Optional;
     }
     public LostItem save(LostItem item){return repository.save(item);}
     public List<LostItem> all(){return repository.findAll();}
+    public List<LostItem> mine(User user){return repository.findByReporterId(user.getId());}
     public Optional<LostItem> find(Long id){return repository.findById(id);}
     /** Lets a new lost report alert its owner when an already-reported found item is a strong candidate. */
     private void notifyPossibleMatches(LostItem lost){

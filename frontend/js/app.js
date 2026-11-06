@@ -921,10 +921,110 @@ async function submitReport(event, type) {
 async function renderReports(container) {
   container.innerHTML = await loadPartial('pages/reports.html');
   document.getElementById('reports-status').outerHTML = status();
-  const grid = document.getElementById('reports-grid');
-  const all = items();
-  grid.innerHTML = all.length ? '' : empty('No reports yet', 'Create a report to add it here.');
-  if (all.length) grid.replaceChildren(...(await Promise.all(all.map(buildCard))));
+  const all = await reportsForCurrentUser();
+  const lost = all.filter((item) => item.type === 'LOST');
+  const found = all.filter((item) => item.type === 'FOUND');
+  renderReportLane('lost-reports', lost, 'No lost reports yet', 'Report a lost item to begin tracking it.');
+  renderReportLane('found-reports', found, 'No found reports yet', 'Report a found item to make it easier to return.');
+  await renderRankedReportMatches(lost);
+}
+async function reportsForCurrentUser() {
+  if (!backendAvailable || !currentUser?.email) return items();
+  try {
+    const [lost, found] = await Promise.all([api('/lost-items/mine'), api('/found-items/mine')]);
+    return [...lost.map((item) => displayItem(item, 'LOST')), ...found.map((item) => displayItem(item, 'FOUND'))];
+  } catch (_) {
+    backendAvailable = false;
+    return items();
+  }
+}
+function reportLaneItem(item) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = `report-lane-item ${item.type.toLowerCase()}`;
+  const top = document.createElement('div');
+  top.className = 'report-lane-item-top';
+  const type = document.createElement('span');
+  type.className = 'report-lane-type';
+  type.textContent = item.type === 'LOST' ? 'Lost' : 'Found';
+  const date = document.createElement('span');
+  date.textContent = item.date;
+  top.append(type, date);
+  const title = document.createElement('strong');
+  title.textContent = item.title;
+  const meta = document.createElement('span');
+  meta.className = 'report-lane-meta';
+  meta.textContent = `${item.category} · ${item.location}`;
+  const footer = document.createElement('span');
+  footer.className = 'report-lane-footer';
+  footer.textContent = `${item.status} · View details →`;
+  button.append(top, title, meta, footer);
+  button.addEventListener('click', () => navigate(`item-${encodeURIComponent(item.id)}`));
+  return button;
+}
+function renderReportLane(prefix, reports, emptyTitle, emptyMessage) {
+  const target = document.getElementById(`${prefix}-list`);
+  const count = document.getElementById(`${prefix}-count`);
+  count.textContent = reports.length;
+  if (!reports.length) {
+    target.innerHTML = empty(emptyTitle, emptyMessage);
+    return;
+  }
+  target.replaceChildren(...reports.map(reportLaneItem));
+}
+function reportMatchItem(entry) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'ranked-match-item';
+  const score = document.createElement('span');
+  score.className = 'ranked-match-score';
+  score.textContent = `${Math.round(entry.score * 100)}% match`;
+  const lost = document.createElement('strong');
+  lost.textContent = entry.lost.title;
+  const found = document.createElement('span');
+  found.className = 'ranked-match-pair';
+  found.textContent = `Possible found item: ${claimItemName(entry.match.item)}`;
+  const detail = document.createElement('span');
+  detail.className = 'ranked-match-detail';
+  detail.textContent = `${entry.match.item?.category || 'Other'} · ${entry.match.item?.location || 'Location unavailable'} · Review match →`;
+  button.append(score, lost, found, detail);
+  button.addEventListener('click', () => navigate(`item-${encodeURIComponent(entry.lost.id)}`));
+  return button;
+}
+async function renderRankedReportMatches(lostReports) {
+  const target = document.getElementById('ranked-matches-list');
+  const count = document.getElementById('ranked-matches-count');
+  if (!backendAvailable || !currentUser?.email) {
+    target.innerHTML = empty('Live matches unavailable', 'Start the live API and sign in to see ranked suggestions.');
+    return;
+  }
+  const eligibleLostReports = lostReports.filter((item) => item.serverId && item.verificationAvailable);
+  if (!eligibleLostReports.length) {
+    target.innerHTML = empty('No matches yet', 'Create a lost report with private details to receive ranked suggestions.');
+    return;
+  }
+  try {
+    const resultSets = await Promise.all(
+      eligibleLostReports.map(async (lost) => ({
+        lost,
+        matches: await api(`/lost-items/${lost.serverId}/matches?limit=5`),
+      })),
+    );
+    const ranked = resultSets
+      .flatMap(({ lost, matches }) => matches
+        .filter((match) => match.canCreateClaim && Number(match.score) > 0)
+        .map((match) => ({ lost, match, score: Number(match.score) })))
+      .sort((first, second) => second.score - first.score)
+      .slice(0, 12);
+    count.textContent = ranked.length;
+    if (!ranked.length) {
+      target.innerHTML = empty('No ranked matches yet', 'A matching found report will appear here when one is available.');
+      return;
+    }
+    target.replaceChildren(...ranked.map(reportMatchItem));
+  } catch (_) {
+    target.innerHTML = empty('Could not load matches', 'Please try again after the live API reconnects.');
+  }
 }
 async function buildClaimCard(claim) {
   const template = await loadTemplate('components/claim-card.html');

@@ -1,5 +1,34 @@
-<div class="section-heading">
-  <div><span class="eyebrow">Your activity</span><h2>All Reports</h2></div>
-  <span id="reports-status"></span>
-</div>
-<div class="item-grid" id="reports-grid"></div>
+<section class="reports-console" aria-labelledby="reports-heading">
+  <header class="reports-console-header">
+    <div>
+      <span class="eyebrow">Your activity</span>
+      <h2 id="reports-heading">My Reports</h2>
+      <p>Review your reports and the strongest lost-to-found suggestions in one workspace.</p>
+    </div>
+    <span id="reports-status"></span>
+  </header>
+  <div class="reports-workspace">
+    <section class="report-lane lost-lane" aria-labelledby="lost-reports-heading">
+      <div class="report-lane-header">
+        <div><span class="report-lane-kicker">Reported by you</span><h3 id="lost-reports-heading">Lost reports</h3></div>
+        <span class="report-lane-count" id="lost-reports-count">0</span>
+      </div>
+      <div class="report-lane-list" id="lost-reports-list"></div>
+    </section>
+    <section class="report-lane found-lane" aria-labelledby="found-reports-heading">
+      <div class="report-lane-header">
+        <div><span class="report-lane-kicker">Reported by you</span><h3 id="found-reports-heading">Found reports</h3></div>
+        <span class="report-lane-count" id="found-reports-count">0</span>
+      </div>
+      <div class="report-lane-list" id="found-reports-list"></div>
+    </section>
+    <section class="report-lane matches-lane" aria-labelledby="ranked-matches-heading">
+      <div class="report-lane-header">
+        <div><span class="report-lane-kicker">Similarity engine</span><h3 id="ranked-matches-heading">Ranked matches</h3></div>
+        <span class="report-lane-count" id="ranked-matches-count">0</span>
+      </div>
+      <p class="report-lane-note">Suggestions are ranked by color, location, and keywords. They are not proof of ownership.</p>
+      <div class="report-lane-list" id="ranked-matches-list"></div>
+    </section>
+  </div>
+</section>

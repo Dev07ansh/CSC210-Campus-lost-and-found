@@ -45,6 +45,10 @@ public class FoundItemController {
     }
 
     @GetMapping public List<FoundItem> all(){return service.all();}
+    @GetMapping("/mine")
+    public List<FoundItem> mine(@RequestHeader(value = "X-User-Email", required = false) String userEmail) {
+        return service.mine(currentUsers.requireUser(userEmail));
+    }
     @GetMapping("/category/{category}") public List<FoundItem> category(@PathVariable String category){return service.category(category);}
     @GetMapping("/search") public List<FoundItem> search(@RequestParam String query,@RequestParam(defaultValue="true") boolean prefix){return service.search(query,prefix);}
     @GetMapping("/date-range") public List<FoundItem> dateRange(@RequestParam @DateTimeFormat(iso=DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,@RequestParam @DateTimeFormat(iso=DateTimeFormat.ISO.DATE_TIME) LocalDateTime end){return service.dateRange(start,end);}

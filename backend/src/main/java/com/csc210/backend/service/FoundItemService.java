@@ -51,6 +51,7 @@ public class FoundItemService {
     }
     private void index(FoundItem item){hash.insert(item.getCategory(),item.getId());for(String word:normalizer.extractKeywords(item.getItemName()))trie.insert(word,item.getId());for(String word:normalizer.extractKeywords(item.getDescription()))trie.insert(word,item.getId());}
     public List<FoundItem> all(){return foundRepo.findAll();}
+    public List<FoundItem> mine(User user){return foundRepo.findByReporterId(user.getId());}
     public List<FoundItem> category(String category){return foundRepo.findAllById(hash.search(category));}
     public List<FoundItem> dateRange(LocalDateTime start,LocalDateTime end){List<FoundItem> values=new ArrayList<>();for(FoundItem item:foundRepo.findAll())if(item.getDateTime()!=null)values.add(item);values.sort(Comparator.comparing(FoundItem::getDateTime));return binary.searchByDateRange(values,start,end);}
     public List<FoundItem> search(String query,boolean prefix){List<String> words=normalizer.extractKeywords(query);if(words.isEmpty())return List.of();List<Long> ids=null;for(String word:words){List<Long> next=prefix?trie.startsWith(word):trie.search(word);if(ids==null)ids=new ArrayList<>(next);else ids.retainAll(next);if(ids.isEmpty())return List.of();}return foundRepo.findAllById(ids);}
