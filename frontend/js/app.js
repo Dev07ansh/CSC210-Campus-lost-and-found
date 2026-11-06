@@ -176,6 +176,18 @@ const imageSrc = (imageUrl) =>
 function populateSelect(id, values) {
   document.getElementById(id).append(...values.map((value) => new Option(value, value)));
 }
+function todayInputValue() {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+function configureReportDateInput(input, labelText) {
+  if (!input) return;
+  input.max = todayInputValue();
+  const label = document.getElementById('report-date-label');
+  if (label) label.textContent = `${labelText} *`;
+}
 function empty(title, message) {
   return `<div class="empty"><h3>${esc(title)}</h3><p>${esc(message)}</p></div>`;
 }
@@ -653,6 +665,17 @@ async function renderBrowse(container) {
   populateSelect('category', CATEGORIES);
   populateSelect('color', COLORS);
   populateSelect('location', LOCATIONS);
+  const start = document.getElementById('start');
+  const end = document.getElementById('end');
+  const syncDateRange = () => {
+    const today = todayInputValue();
+    start.max = end.value && end.value < today ? end.value : today;
+    end.max = today;
+    end.min = start.value || '';
+  };
+  start.addEventListener('change', syncDateRange);
+  end.addEventListener('change', syncDateRange);
+  syncDateRange();
   document.getElementById('query').value = localStorage.getItem('lf_query') || '';
   await filterItems();
 }
@@ -735,6 +758,10 @@ async function renderReportForm(container, type) {
   container.innerHTML = await loadPartial('pages/report-form.html');
   document.getElementById('report-eyebrow').textContent = lost ? 'Lost item' : 'Found item';
   document.getElementById('report-heading').textContent = `Report ${lost ? 'a lost' : 'a found'} item`;
+  configureReportDateInput(
+    document.querySelector('#report-form [name="date"]'),
+    lost ? 'Date the item was lost' : 'Date the item was found',
+  );
   populateSelect('category', CATEGORIES);
   populateSelect('color', COLORS);
   populateSelect('location', LOCATIONS);

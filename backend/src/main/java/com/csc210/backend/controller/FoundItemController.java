@@ -10,6 +10,7 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -50,6 +51,7 @@ public class FoundItemController {
 
     private FoundItem item(FoundItemCreateRequest request) {
         if (request == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Found-item report details are required.");
+        validateReportDate(request.dateTime());
         FoundItem item = new FoundItem();
         item.setItemName(request.itemName());
         item.setCategory(request.category());
@@ -60,6 +62,15 @@ public class FoundItemController {
         item.setDateTime(request.dateTime());
         item.setCollectionDesk(request.collectionDesk());
         return item;
+    }
+
+    private void validateReportDate(LocalDateTime dateTime) {
+        if (dateTime == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose the date the item was found.");
+        }
+        if (dateTime.toLocalDate().isAfter(LocalDate.now())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A found-item report cannot use a future date.");
+        }
     }
 
     /** Prevents clients from assigning report status or a different reporter. */

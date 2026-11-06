@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -71,6 +72,7 @@ public class LostItemController {
 
     private LostItem item(LostItemCreateRequest request) {
         if (request == null) throw badRequest("Lost-item report details are required.");
+        validateReportDate(request.dateTime());
         LostItem item = new LostItem();
         item.setItemName(request.itemName());
         item.setCategory(request.category());
@@ -90,6 +92,12 @@ public class LostItemController {
     }
 
     private ResponseStatusException badRequest(String message) { return new ResponseStatusException(HttpStatus.BAD_REQUEST, message); }
+    private void validateReportDate(LocalDateTime dateTime) {
+        if (dateTime == null) throw badRequest("Choose the date the item was lost.");
+        if (dateTime.toLocalDate().isAfter(LocalDate.now())) {
+            throw badRequest("A lost-item report cannot use a future date.");
+        }
+    }
     private boolean isActive(String status) { return status != null && "active".equalsIgnoreCase(status); }
     private boolean hasCompleteSecret(Long lostItemId) {
         return lostItemId != null && secrets.findByLostItemId(lostItemId).map(LostItemSecret::isComplete).orElse(false);

@@ -19,15 +19,15 @@
   <select id="location" onchange="filterItems()">
     <option value="">All locations</option>
   </select>
-  <label class="filter-date-field">
+  <label class="filter-date-field" title="Choose today or an earlier date">
     <input id="start" type="date" aria-label="Found report date — from" onchange="filterItems()">
     <span class="filter-date-hint" aria-hidden="true">Found date — from</span>
   </label>
-  <label class="filter-date-field">
+  <label class="filter-date-field" title="Choose today or an earlier date">
     <input id="end" type="date" aria-label="Found report date — to" onchange="filterItems()">
     <span class="filter-date-hint" aria-hidden="true">Found date — to</span>
   </label>
 </div>
-<p class="filter-date-note">This date range filters found reports only. Lost report dates are not currently filtered here.</p>
+<p class="filter-date-note">Choose today or an earlier date. This range filters found reports only; lost report dates are not currently filtered here.</p>
 <p id="algorithm" class="dsa-note"></p>
 <div id="results" class="item-grid"></div>
